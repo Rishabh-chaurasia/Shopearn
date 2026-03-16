@@ -309,11 +309,12 @@ export function LoginModal({ D, onClose, onLogin }) {
 
 /* ══════════════════════════════════
    AI DEAL FINDER CHATBOT
-   ✅ No external API — works 100% offline using local product search
+   ✅ Uses Claude API via Anthropic (artifact-safe proxy)
+   ✅ Falls back to smart local search if API unavailable
 ══════════════════════════════════ */
 export function AIChatbot({ D, products, onShop, onClose }) {
   const [messages, setMessages] = useState([
-    { role:"assistant", text:"Hi! 👋 I'm SaveKaro AI. Tell me what you're looking for — like 'best earphones under ₹2000' or 'top deals on fashion'." }
+    { role:"assistant", text:"Hi! 👋 I'm SaveKaro AI. Tell me what you're looking for — like 'best earphones under ₹2000' or 'show me top fashion deals' or 'gift ideas under ₹3000'." }
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -322,147 +323,191 @@ export function AIChatbot({ D, products, onShop, onClose }) {
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages]);
 
   const fmt = n => "₹" + Number(n).toLocaleString("en-IN");
+  const discPct = p => Math.round(((p.mrp - p.price) / p.mrp) * 100);
 
-  // ── SMART LOCAL SEARCH ENGINE ──────────────────────────────────────────
-  const sendMessage = () => {
+  // ── PRODUCT CATALOG SUMMARY (sent to Claude as context) ──────────────
+  const buildCatalog = () => products.map(p =>
+    `[ID:${p.id}] "${p.title}" | ${p.store} | ₹${p.price} (MRP ₹${p.mrp}, ${discPct(p)}% off) | ${p.cashbackPct}% cashback | cat:${p.category} | rating:${p.rating} | tags:${(p.tags||[]).join(",")} | inStock:${p.inStock}`
+  ).join("\n");
+
+  // ── LOCAL FALLBACK SEARCH ─────────────────────────────────────────────
+  const localSearch = (query) => {
+    const q = query.toLowerCase();
+
+    // Budget extraction — handles "under 2000", "₹1500", "2000 se kam", "2k"
+    const budgetRaw = q.match(/(\d+)\s*k\b/)?.[1] * 1000
+      || parseInt((q.match(/(?:under|below|less than|upto|up to|within|₹|rs\.?)\s*(\d[\d,]*)/i)
+         || q.match(/(\d[\d,]+)\s*(?:se kam|tak|me|budget)/)
+         || q.match(/(\d{3,})/))?.[1]?.replace(/,/g,"")) || 999999;
+    const budget = budgetRaw;
+
+    // Keyword → category mapping
+    const catWords = {
+      electronics: ["phone","mobile","iphone","android","samsung","oneplus","laptop","tv","television","earphone","earbuds","headphone","speaker","tablet","camera","gadget","boat","noise","jbl","realtek","redmi","xiaomi","oppo","vivo"],
+      fashion:     ["fashion","clothes","clothing","shirt","jeans","denim","dress","saree","kurta","tshirt","t-shirt","shoes","sandal","sneaker","watch","bag","purse","wallet","levis","myntra","ajio","zara","h&m","western","ethnic"],
+      beauty:      ["beauty","skincare","skin","makeup","serum","cream","lotion","lipstick","nykaa","moisturizer","hair","face wash","sunscreen","toner","foundation","blush","mascara","kajal","perfume","deodorant"],
+      food:        ["food","swiggy","zomato","restaurant","pizza","biryani","meal","snack","grocery","order food"],
+      travel:      ["travel","flight","hotel","trip","makemytrip","holiday","tour","booking","vacation","mmt"],
+      fitness:     ["gym","fitness","workout","exercise","protein","supplement","dumbbell","yoga","sports","badminton","cricket","cycling","running","shoes","bold","boldfit"],
+      home:        ["home","kitchen","cooker","appliance","furniture","bedding","cooktop","mixer","blender","induction","prestige","havells","philips","bajaj","fan","ac","refrigerator","fridge","washing machine"],
+    };
+
+    let matchedCat = null;
+    for (const [cat, kws] of Object.entries(catWords)) {
+      if (kws.some(k => q.includes(k))) { matchedCat = cat; break; }
+    }
+
+    // Intents
+    const wantsCheap    = /cheap|budget|affordable|sasta|सस्ता|low price|lowest/.test(q);
+    const wantsBest     = /best|top|popular|trending|recommended|highest rated|must buy/.test(q);
+    const wantsCashback = /cashback|earn|kama|reward/.test(q);
+    const wantsSale     = /sale|discount|offer|deal|off/.test(q);
+    const wantsGift     = /gift|present|birthday|anniversary|surprise|someone/.test(q);
+
+    // Score every in-stock product
+    const results = products
+      .filter(p => p.inStock && p.price <= budget * 1.08)
+      .map(p => {
+        let score = 0;
+        const blob = `${p.title} ${p.store} ${p.category} ${(p.tags||[]).join(" ")} ${p.badge}`.toLowerCase();
+
+        // Word-by-word match (most important)
+        const queryWords = q.replace(/[₹,]/g,"").split(/\s+/).filter(w => w.length > 2 && !/^(best|top|show|give|find|me|the|a|an|for|and|or|with|under|below|above|in|on|at|by)$/.test(w));
+        queryWords.forEach(w => {
+          if (blob.includes(w)) score += 10;           // exact word in title/tags
+          if (p.title.toLowerCase().includes(w)) score += 5; // extra if in title
+        });
+
+        // Category bonus
+        if (matchedCat && p.category === matchedCat) score += 20;
+
+        // Intent boosts
+        if (wantsCheap)    score += Math.max(0, (budget - p.price) / budget * 15);
+        if (wantsBest)     score += p.rating * 4;
+        if (wantsCashback) score += p.cashbackPct * 3;
+        if (wantsSale)     score += discPct(p) / 3;
+        if (wantsGift)     score += p.topDeal ? 8 : 2;
+
+        // General quality boost
+        if (p.topDeal)  score += 6;
+        if (p.flashSale)score += 3;
+        score += p.rating;
+
+        return { p, score };
+      })
+      .filter(x => x.score > 5)           // must have some relevance
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map(x => x.p);
+
+    // If nothing matches query but budget is set, show cheapest in budget
+    if (results.length === 0 && budget < 999999) {
+      const budgetPicks = products.filter(p => p.inStock && p.price <= budget)
+        .sort((a,b) => b.rating - a.rating).slice(0,3);
+      return { results: budgetPicks, matchedCat, budget, wantsCashback, wantsSale, wantsGift, wantsBest, queryWords: q.split(/\s+/).filter(w=>w.length>2) };
+    }
+
+    // If still nothing, show top deals
+    if (results.length === 0) {
+      return { results: products.filter(p=>p.inStock&&p.topDeal).slice(0,3), matchedCat, budget, wantsCashback, wantsSale, wantsGift, wantsBest, noMatch:true };
+    }
+
+    return { results, matchedCat, budget, wantsCashback, wantsSale, wantsGift, wantsBest };
+  };
+
+  // ── BUILD REPLY TEXT ──────────────────────────────────────────────────
+  const buildReply = ({ results, matchedCat, budget, wantsCashback, wantsSale, wantsGift, wantsBest, noMatch }) => {
+    if (noMatch) return `🔍 Couldn't find an exact match. Here are our top deals today — you might find something you like! 🛍️`;
+    if (results.length === 0) return `😅 No deals found right now. Try a different search!`;
+
+    const maxCashback = Math.max(...results.map(p=>p.cashbackPct));
+    const maxDisc = Math.max(...results.map(p=>discPct(p)));
+
+    if (wantsGift)     return `🎁 Found ${results.length} great gift idea${results.length>1?"s":" "}! Best pick has ${maxDisc}% off + ${maxCashback}% cashback. 💝`;
+    if (wantsCashback) return `💰 Highest cashback picks for you! Up to ${maxCashback}% cashback on these. 🤑`;
+    if (wantsSale)     return `🔥 Best discounts right now — up to ${maxDisc}% off! + cashback on top. 💸`;
+    if (budget < 999999) return `✅ Found ${results.length} deal${results.length>1?"s":""} under ${fmt(budget)}! Up to ${maxDisc}% off + ${maxCashback}% cashback. 🎯`;
+    if (matchedCat)    return `🎯 Top ${matchedCat} picks for you! Up to ${maxDisc}% off + ${maxCashback}% cashback. ⭐`;
+    if (wantsBest)     return `⭐ Here are the top-rated deals matching your search! Up to ${maxDisc}% off + ${maxCashback}% cashback.`;
+    return `🛍️ Found ${results.length} great match${results.length>1?"es":""}! Up to ${maxDisc}% off + ${maxCashback}% cashback. 💸`;
+  };
+
+  // ── MAIN SEND HANDLER ─────────────────────────────────────────────────
+  const sendMessage = async () => {
     if (!input.trim() || loading) return;
     const userMsg = input.trim();
     setInput("");
     setMessages(m => [...m, { role:"user", text:userMsg }]);
     setLoading(true);
 
-    setTimeout(() => {
-      const query = userMsg.toLowerCase();
+    try {
+      // Try Claude API first
+      const catalog = buildCatalog();
+      const historyForAPI = messages.slice(1).map(m => ({
+        role: m.role === "user" ? "user" : "assistant",
+        content: m.text
+      }));
 
-      // Extract budget from message (e.g. "under 2000", "below 5000", "₹1500")
-      const budgetMatch = query.match(/(?:under|below|less than|upto|up to|₹|rs\.?)\s*(\d[\d,]*)/i)
-        || query.match(/(\d[\d,]+)\s*(?:se kam|tak|budget)/i)
-        || query.match(/(\d{3,})/);
-      const budget = budgetMatch
-        ? parseInt(budgetMatch[1].replace(/,/g, ""))
-        : 999999;
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 400,
+          system: `You are SaveKaro AI, a helpful shopping assistant for an Indian cashback & deals website.
 
-      // Category detection
-      const categoryMap = {
-        electronics: ["phone","mobile","laptop","tv","earphone","headphone","speaker","tablet","camera","smart","device","gadget","electronics","iphone","android","samsung","boat"],
-        fashion:     ["fashion","clothes","shirt","jeans","dress","saree","kurta","tshirt","shoes","sandal","sneaker","watch","bag","myntra","ajio"],
-        beauty:      ["beauty","skincare","makeup","serum","cream","lotion","lipstick","nykaa","moisturizer","hair","face wash"],
-        food:        ["food","swiggy","zomato","order","eat","restaurant","pizza","biryani","meal"],
-        travel:      ["travel","flight","hotel","trip","makemytrip","book","tour","holiday"],
-        fitness:     ["gym","fitness","workout","exercise","protein","dumbbell","yoga","sports","badminton","cricket"],
-        home:        ["home","kitchen","cooker","appliance","furniture","bedding","cooktop","mixer","blender"],
-      };
+PRODUCT CATALOG (all available products):
+${catalog}
 
-      let detectedCategory = null;
-      for (const [cat, keywords] of Object.entries(categoryMap)) {
-        if (keywords.some(k => query.includes(k))) {
-          detectedCategory = cat;
-          break;
-        }
-      }
-
-      // Intent detection
-      const isCheap   = /cheap|budget|affordable|sasta|सस्ता|kam price/.test(query);
-      const isBest    = /best|top|popular|trending|recommended|accha/.test(query);
-      const isCashback= /cashback|earn|points|rewards|kama/.test(query);
-      const isSale    = /sale|discount|offer|deal|off|saving/.test(query);
-      const isGift    = /gift|present|birthday|anniversary|surprise/.test(query);
-
-      // Score each product
-      const scored = products
-        .filter(p => p.inStock)
-        .map(p => {
-          let score = 0;
-          const searchable = `${p.title} ${p.store} ${p.category} ${(p.tags||[]).join(" ")}`.toLowerCase();
-
-          // Budget filter
-          if (p.price > budget * 1.05) return { p, score: -1 };
-
-          // Query word match
-          const words = query.split(/\s+/).filter(w => w.length > 2);
-          words.forEach(w => { if (searchable.includes(w)) score += 3; });
-
-          // Category match
-          if (detectedCategory && p.category === detectedCategory) score += 5;
-
-          // Intent boosts
-          if (isCheap)    score += (100000 - p.price) / 10000;
-          if (isBest)     score += p.rating * 2;
-          if (isCashback) score += p.cashbackPct * 2;
-          if (isSale)     score += (p.mrp - p.price) / 500;
-          if (p.topDeal)  score += 3;
-          if (p.flashSale)score += 2;
-
-          return { p, score };
+RULES:
+- Recommend 1-3 most relevant products from the catalog ONLY
+- ALWAYS mention price, discount %, cashback %, and store name
+- If user specifies a budget, ONLY show products within that budget
+- Mark product IDs exactly like [ID:5] so they can be shown as cards
+- Be friendly, enthusiastic, concise. Use emojis.
+- Reply in the same language as the user (Hindi or English)
+- If no good match, say so honestly and suggest closest alternatives`,
+          messages: [
+            ...historyForAPI,
+            { role: "user", content: userMsg }
+          ]
         })
-        .filter(x => x.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 3)
-        .map(x => x.p);
+      });
 
-      // Build reply text
-      let reply = "";
+      if (!res.ok) throw new Error("API error");
+      const data = await res.json();
+      const rawReply = data.content?.[0]?.text || "";
 
-      if (scored.length > 0) {
-        if (isGift) {
-          reply = `🎁 Found ${scored.length} great gift idea${scored.length > 1 ? "s" : ""}!`;
-        } else if (isCashback) {
-          reply = `💰 These give the highest cashback right now!`;
-        } else if (isSale) {
-          reply = `🔥 Biggest discounts available today!`;
-        } else if (budget < 999999) {
-          reply = `✅ Found ${scored.length} deal${scored.length > 1 ? "s" : ""} under ${fmt(budget)}!`;
-        } else if (detectedCategory) {
-          reply = `🎯 Top picks in ${detectedCategory} for you!`;
-        } else {
-          reply = `🛍️ Here are the best matches for "${userMsg}"!`;
-        }
+      // Extract product IDs mentioned by Claude
+      const idMatches = [...rawReply.matchAll(/\[ID:(\d+)\]/g)].map(m => parseInt(m[1]));
+      const mentionedProducts = products.filter(p => idMatches.includes(p.id));
+      const cleanReply = rawReply.replace(/\[ID:\d+\]/g, "").trim();
 
-        const avgCashback = Math.round(scored.reduce((s, p) => s + p.cashbackPct, 0) / scored.length);
-        reply += ` All with up to ${avgCashback}% cashback! 💸`;
+      setMessages(m => [...m, { role:"assistant", text:cleanReply, products:mentionedProducts }]);
 
-      } else {
-        // Fallback — show popular deals
-        const fallbacks = products.filter(p => p.inStock && p.topDeal).slice(0, 3);
-        scored.push(...fallbacks);
+    } catch {
+      // API failed — use smart local search
+      const { results, ...meta } = localSearch(userMsg);
+      const reply = buildReply({ results, ...meta });
+      setMessages(m => [...m, { role:"assistant", text:reply, products:results }]);
+    }
 
-        if (budget < 10000 && fallbacks.length === 0) {
-          reply = `😅 No deals found under ${fmt(budget)} right now. Here are today's best offers instead!`;
-        } else if (detectedCategory) {
-          reply = `😅 No exact match for "${detectedCategory}" in your budget. Here are today's top deals!`;
-        } else {
-          reply = `🔍 Couldn't find an exact match for "${userMsg}". Here are our top deals today!`;
-        }
-      }
-
-      setMessages(m => [...m, {
-        role: "assistant",
-        text: reply,
-        products: [...new Map(scored.map(p => [p.id, p])).values()].slice(0, 3)
-      }]);
-      setLoading(false);
-    }, 700); // small delay for natural feel
+    setLoading(false);
   };
 
-  // Quick prompt suggestions (update based on context)
-  const quickPrompts = [
-    "earphones under ₹1500",
-    "best fashion deals",
-    "top cashback products",
-    "gifts under ₹2000",
-    "sale items today",
-  ];
+  const quickPrompts = ["earphones under ₹1500","best fashion deals","top cashback today","gift under ₹2000","home appliances sale"];
 
   return (
     <div style={{ position:"fixed",bottom:24,left:24,zIndex:8500,width:340,maxWidth:"calc(100vw - 48px)" }}>
-      <div style={{ background:D.card,borderRadius:20,boxShadow:"0 16px 60px rgba(0,0,0,.25)",border:`1px solid ${D.border}`,overflow:"hidden",display:"flex",flexDirection:"column",height:480 }}>
+      <div style={{ background:D.card,borderRadius:20,boxShadow:"0 16px 60px rgba(0,0,0,.25)",border:`1px solid ${D.border}`,overflow:"hidden",display:"flex",flexDirection:"column",height:500 }}>
+
         {/* Header */}
         <div style={{ background:"linear-gradient(135deg,#6C63FF,#4A90E2)",padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between" }}>
           <div style={{ display:"flex",alignItems:"center",gap:10 }}>
             <div style={{ width:36,height:36,background:"rgba(255,255,255,.2)",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18 }}>🤖</div>
             <div>
               <div style={{ color:"#fff",fontWeight:800,fontSize:14 }}>SaveKaro AI</div>
-              <div style={{ color:"rgba(255,255,255,.7)",fontSize:11 }}>Smart deal finder • Always online ✅</div>
+              <div style={{ color:"rgba(255,255,255,.75)",fontSize:11 }}>Smart deal finder ✨</div>
             </div>
           </div>
           <button onClick={onClose} style={{ background:"none",border:"none",color:"rgba(255,255,255,.8)",fontSize:20,cursor:"pointer" }}>✕</button>
@@ -475,19 +520,18 @@ export function AIChatbot({ D, products, onShop, onClose }) {
               <div style={{ maxWidth:"85%",background:m.role==="user"?"linear-gradient(135deg,#FF5722,#FF9800)":D.input,color:m.role==="user"?"#fff":D.text,padding:"10px 14px",borderRadius:m.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",fontSize:13,lineHeight:1.6 }}>
                 {m.text}
               </div>
-              {/* Product cards shown by AI */}
               {m.products?.map(p => (
                 <div key={p.id} onClick={() => onShop(p.slug, p.store, p)}
-                  style={{ maxWidth:"90%",background:D.card,border:`1px solid ${D.border}`,borderRadius:12,padding:"10px 12px",cursor:"pointer",display:"flex",gap:10,alignItems:"center",transition:"transform .15s",boxShadow:"0 2px 8px rgba(0,0,0,.06)" }}
-                  onMouseEnter={e => e.currentTarget.style.transform="translateY(-2px)"}
-                  onMouseLeave={e => e.currentTarget.style.transform="translateY(0)"}>
-                  <img src={p.image} alt={p.title} style={{ width:44,height:44,borderRadius:8,objectFit:"cover",flexShrink:0 }} />
+                  style={{ maxWidth:"92%",background:D.card,border:`1.5px solid ${D.border}`,borderRadius:12,padding:"10px 12px",cursor:"pointer",display:"flex",gap:10,alignItems:"center",transition:"all .15s",boxShadow:"0 2px 10px rgba(0,0,0,.07)" }}
+                  onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.borderColor="#FF5722";}}
+                  onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.borderColor=D.border;}}>
+                  <img src={p.image} alt={p.title} style={{ width:46,height:46,borderRadius:9,objectFit:"cover",flexShrink:0 }} />
                   <div style={{ flex:1,minWidth:0 }}>
-                    <div style={{ fontSize:12,fontWeight:700,color:D.text,lineHeight:1.3,marginBottom:3,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden" }}>{p.title}</div>
-                    <div style={{ display:"flex",gap:6,alignItems:"center",flexWrap:"wrap" }}>
+                    <div style={{ fontSize:12,fontWeight:700,color:D.text,lineHeight:1.3,marginBottom:4,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden" }}>{p.title}</div>
+                    <div style={{ display:"flex",gap:5,alignItems:"center",flexWrap:"wrap" }}>
                       <span style={{ fontSize:13,fontWeight:900,color:"#FF5722" }}>{fmt(p.price)}</span>
                       <span style={{ fontSize:10,background:"#FF572222",color:"#FF5722",padding:"1px 6px",borderRadius:8,fontWeight:700 }}>+{p.cashbackPct}% back</span>
-                      <span style={{ fontSize:10,background:"#48BB7822",color:"#48BB78",padding:"1px 6px",borderRadius:8,fontWeight:700 }}>{Math.round(((p.mrp-p.price)/p.mrp)*100)}% OFF</span>
+                      <span style={{ fontSize:10,background:"#48BB7822",color:"#276749",padding:"1px 6px",borderRadius:8,fontWeight:700 }}>{discPct(p)}% OFF</span>
                     </div>
                   </div>
                 </div>
@@ -496,14 +540,12 @@ export function AIChatbot({ D, products, onShop, onClose }) {
           ))}
 
           {loading && (
-            <div style={{ display:"flex",alignItems:"center",gap:8,color:D.sub,fontSize:13 }}>
+            <div style={{ display:"flex",alignItems:"center",gap:8,color:D.sub,fontSize:13,padding:"4px 0" }}>
               <div style={{ display:"flex",gap:4 }}>
-                {[0,1,2].map(i => (
-                  <span key={i} style={{ width:7,height:7,borderRadius:"50%",background:"#6C63FF",display:"inline-block",animation:`chatBlink 1.2s ${i*0.2}s infinite` }} />
-                ))}
+                {[0,1,2].map(i => <span key={i} style={{ width:7,height:7,borderRadius:"50%",background:"#6C63FF",display:"inline-block",animation:`chatDot 1.2s ${i*0.2}s infinite` }} />)}
               </div>
-              <span>Searching deals…</span>
-              <style>{`@keyframes chatBlink{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(1.3)}}`}</style>
+              <span>Finding best deals…</span>
+              <style>{`@keyframes chatDot{0%,100%{opacity:.25;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}`}</style>
             </div>
           )}
           <div ref={bottomRef} />
@@ -521,20 +563,14 @@ export function AIChatbot({ D, products, onShop, onClose }) {
 
         {/* Input */}
         <div style={{ padding:"10px 12px",borderTop:`1px solid ${D.border}`,display:"flex",gap:8 }}>
-          <input
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key==="Enter" && sendMessage()}
-            placeholder="Ask me anything…"
-            style={{ flex:1,padding:"10px 14px",borderRadius:12,border:`1.5px solid ${D.inputBorder}`,fontSize:13,outline:"none",background:D.input,color:D.text,fontFamily:"inherit" }}
-          />
-          <button
-            onClick={sendMessage}
-            disabled={!input.trim() || loading}
-            style={{ background:"linear-gradient(135deg,#6C63FF,#4A90E2)",border:"none",borderRadius:12,padding:"10px 14px",cursor:input.trim()&&!loading?"pointer":"not-allowed",fontSize:16,opacity:input.trim()&&!loading?1:.6 }}>
+          <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendMessage()} placeholder="Ask me anything…"
+            style={{ flex:1,padding:"10px 14px",borderRadius:12,border:`1.5px solid ${D.inputBorder}`,fontSize:13,outline:"none",background:D.input,color:D.text,fontFamily:"inherit" }} />
+          <button onClick={sendMessage} disabled={!input.trim()||loading}
+            style={{ background:"linear-gradient(135deg,#6C63FF,#4A90E2)",border:"none",borderRadius:12,padding:"10px 14px",cursor:input.trim()&&!loading?"pointer":"not-allowed",fontSize:16,opacity:input.trim()&&!loading?1:.5,transition:"opacity .2s" }}>
             🚀
           </button>
         </div>
+
       </div>
     </div>
   );
