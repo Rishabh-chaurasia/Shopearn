@@ -700,15 +700,14 @@ RULES:
 /* ══════════════════════════════════
    USER PROFILE DROPDOWN
 ══════════════════════════════════ */
-export function ProfileDropdown({ user, points, D, onLogout, onNavigate, onClose }) {
-  const level = points < 100 ? "Bronze 🥉" : points < 500 ? "Silver 🥈" : points < 1500 ? "Gold 🥇" : "Platinum 💎";
+export function ProfileDropdown({ user, D, onLogout, onNavigate, onClose }) {
   return (
     <div style={{ position:"absolute",top:"110%",right:0,background:D.card,borderRadius:16,boxShadow:"0 12px 40px rgba(0,0,0,.2)",border:`1px solid ${D.border}`,minWidth:220,zIndex:600,overflow:"hidden" }}>
       <div style={{ padding:"16px 18px",borderBottom:`1px solid ${D.border}`,display:"flex",alignItems:"center",gap:12 }}>
         <div style={{ width:42,height:42,borderRadius:"50%",background:"linear-gradient(135deg,#FF5722,#FF9800)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:900,fontSize:16 }}>{user.avatar}</div>
         <div>
           <div style={{ fontWeight:800,fontSize:14 }}>{user.name}</div>
-          <div style={{ fontSize:11,color:"#F6AD55",fontWeight:700 }}>{level} • {points} pts</div>
+          <div style={{ fontSize:11,color:D.sub }}>{user.email}</div>
         </div>
       </div>
       {[["💰 My Cashback","tracker"],["❤️ Wishlist","wishlist"],["👤 Profile","profile"]].map(([label,page]) => (
