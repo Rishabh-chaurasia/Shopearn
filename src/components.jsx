@@ -184,7 +184,7 @@ export function ExpiryTimer({ hoursFromNow, D }) {
 }
 
 /* ══════════════════════════════════
-   LOYALTY POINTS BAR (shown in nav/profile)
+   LOYALTY POINTS BAR
 ══════════════════════════════════ */
 export function LoyaltyBar({ points, D }) {
   const level = points < 100 ? "Bronze" : points < 500 ? "Silver" : points < 1500 ? "Gold" : "Platinum";
@@ -221,10 +221,10 @@ export function LoyaltyBar({ points, D }) {
 }
 
 /* ══════════════════════════════════
-   LOGIN MODAL (Google + Phone OTP)
+   LOGIN MODAL
 ══════════════════════════════════ */
 export function LoginModal({ D, onClose, onLogin }) {
-  const [mode, setMode] = useState("options"); // options | phone | otp
+  const [mode, setMode] = useState("options");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
@@ -309,10 +309,11 @@ export function LoginModal({ D, onClose, onLogin }) {
 
 /* ══════════════════════════════════
    AI DEAL FINDER CHATBOT
+   ✅ No external API — works 100% offline using local product search
 ══════════════════════════════════ */
 export function AIChatbot({ D, products, onShop, onClose }) {
   const [messages, setMessages] = useState([
-    { role:"assistant", text:"Hi! 👋 I'm SaveKaro AI. Tell me what you're looking for — like 'best earphones under ₹2000' or 'top deals on women fashion'." }
+    { role:"assistant", text:"Hi! 👋 I'm SaveKaro AI. Tell me what you're looking for — like 'best earphones under ₹2000' or 'top deals on fashion'." }
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -320,61 +321,137 @@ export function AIChatbot({ D, products, onShop, onClose }) {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages]);
 
-  const sendMessage = async () => {
+  const fmt = n => "₹" + Number(n).toLocaleString("en-IN");
+
+  // ── SMART LOCAL SEARCH ENGINE ──────────────────────────────────────────
+  const sendMessage = () => {
     if (!input.trim() || loading) return;
     const userMsg = input.trim();
     setInput("");
     setMessages(m => [...m, { role:"user", text:userMsg }]);
     setLoading(true);
 
-    try {
-      // Build product context for AI
-      const productContext = products.map(p =>
-        `ID:${p.id} | "${p.title}" | Store:${p.store} | Price:₹${p.price} | MRP:₹${p.mrp} | ${Math.round(((p.mrp-p.price)/p.mrp)*100)}% OFF | Cashback:${p.cashbackPct}% | Category:${p.category} | Rating:${p.rating} | Tags:${p.tags?.join(",")||""} | inStock:${p.inStock}`
-      ).join("\n");
+    setTimeout(() => {
+      const query = userMsg.toLowerCase();
 
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body:JSON.stringify({
-          model:"claude-sonnet-4-20250514",
-          max_tokens:600,
-          system:`You are SaveKaro AI, a helpful shopping assistant for an Indian cashback & deals website. Your job is to recommend the best deals from our product catalog based on what users ask.
+      // Extract budget from message (e.g. "under 2000", "below 5000", "₹1500")
+      const budgetMatch = query.match(/(?:under|below|less than|upto|up to|₹|rs\.?)\s*(\d[\d,]*)/i)
+        || query.match(/(\d[\d,]+)\s*(?:se kam|tak|budget)/i)
+        || query.match(/(\d{3,})/);
+      const budget = budgetMatch
+        ? parseInt(budgetMatch[1].replace(/,/g, ""))
+        : 999999;
 
-PRODUCT CATALOG:
-${productContext}
+      // Category detection
+      const categoryMap = {
+        electronics: ["phone","mobile","laptop","tv","earphone","headphone","speaker","tablet","camera","smart","device","gadget","electronics","iphone","android","samsung","boat"],
+        fashion:     ["fashion","clothes","shirt","jeans","dress","saree","kurta","tshirt","shoes","sandal","sneaker","watch","bag","myntra","ajio"],
+        beauty:      ["beauty","skincare","makeup","serum","cream","lotion","lipstick","nykaa","moisturizer","hair","face wash"],
+        food:        ["food","swiggy","zomato","order","eat","restaurant","pizza","biryani","meal"],
+        travel:      ["travel","flight","hotel","trip","makemytrip","book","tour","holiday"],
+        fitness:     ["gym","fitness","workout","exercise","protein","dumbbell","yoga","sports","badminton","cricket"],
+        home:        ["home","kitchen","cooker","appliance","furniture","bedding","cooktop","mixer","blender"],
+      };
 
-INSTRUCTIONS:
-- Recommend 1-3 most relevant products from the catalog only
-- Always mention the price, discount %, cashback %, and store
-- If no product matches, say so and suggest browsing categories
-- Keep responses concise, friendly, and in the user's language (Hindi or English)
-- Format product recommendations with product ID in brackets like [ID:3]
-- If asked about a budget, only show products within that budget
-- Be enthusiastic about good deals!`,
-          messages:[
-            ...messages.slice(1).map(m => ({ role:m.role==="user"?"user":"assistant", content:m.text })),
-            { role:"user", content:userMsg }
-          ]
+      let detectedCategory = null;
+      for (const [cat, keywords] of Object.entries(categoryMap)) {
+        if (keywords.some(k => query.includes(k))) {
+          detectedCategory = cat;
+          break;
+        }
+      }
+
+      // Intent detection
+      const isCheap   = /cheap|budget|affordable|sasta|सस्ता|kam price/.test(query);
+      const isBest    = /best|top|popular|trending|recommended|accha/.test(query);
+      const isCashback= /cashback|earn|points|rewards|kama/.test(query);
+      const isSale    = /sale|discount|offer|deal|off|saving/.test(query);
+      const isGift    = /gift|present|birthday|anniversary|surprise/.test(query);
+
+      // Score each product
+      const scored = products
+        .filter(p => p.inStock)
+        .map(p => {
+          let score = 0;
+          const searchable = `${p.title} ${p.store} ${p.category} ${(p.tags||[]).join(" ")}`.toLowerCase();
+
+          // Budget filter
+          if (p.price > budget * 1.05) return { p, score: -1 };
+
+          // Query word match
+          const words = query.split(/\s+/).filter(w => w.length > 2);
+          words.forEach(w => { if (searchable.includes(w)) score += 3; });
+
+          // Category match
+          if (detectedCategory && p.category === detectedCategory) score += 5;
+
+          // Intent boosts
+          if (isCheap)    score += (100000 - p.price) / 10000;
+          if (isBest)     score += p.rating * 2;
+          if (isCashback) score += p.cashbackPct * 2;
+          if (isSale)     score += (p.mrp - p.price) / 500;
+          if (p.topDeal)  score += 3;
+          if (p.flashSale)score += 2;
+
+          return { p, score };
         })
-      });
+        .filter(x => x.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3)
+        .map(x => x.p);
 
-      const data = await response.json();
-      const reply = data.content?.[0]?.text || "Sorry, I couldn't find matching deals right now. Try browsing our deals page!";
+      // Build reply text
+      let reply = "";
 
-      // Extract product IDs from reply for quick-add buttons
-      const idMatches = [...reply.matchAll(/\[ID:(\d+)\]/g)].map(m => parseInt(m[1]));
-      const mentioned = products.filter(p => idMatches.includes(p.id));
-      const cleanReply = reply.replace(/\[ID:\d+\]/g, "");
+      if (scored.length > 0) {
+        if (isGift) {
+          reply = `🎁 Found ${scored.length} great gift idea${scored.length > 1 ? "s" : ""}!`;
+        } else if (isCashback) {
+          reply = `💰 These give the highest cashback right now!`;
+        } else if (isSale) {
+          reply = `🔥 Biggest discounts available today!`;
+        } else if (budget < 999999) {
+          reply = `✅ Found ${scored.length} deal${scored.length > 1 ? "s" : ""} under ${fmt(budget)}!`;
+        } else if (detectedCategory) {
+          reply = `🎯 Top picks in ${detectedCategory} for you!`;
+        } else {
+          reply = `🛍️ Here are the best matches for "${userMsg}"!`;
+        }
 
-      setMessages(m => [...m, { role:"assistant", text:cleanReply, products:mentioned }]);
-    } catch {
-      setMessages(m => [...m, { role:"assistant", text:"Sorry, I'm having trouble connecting right now. Please browse our deals manually!" }]);
-    }
-    setLoading(false);
+        const avgCashback = Math.round(scored.reduce((s, p) => s + p.cashbackPct, 0) / scored.length);
+        reply += ` All with up to ${avgCashback}% cashback! 💸`;
+
+      } else {
+        // Fallback — show popular deals
+        const fallbacks = products.filter(p => p.inStock && p.topDeal).slice(0, 3);
+        scored.push(...fallbacks);
+
+        if (budget < 10000 && fallbacks.length === 0) {
+          reply = `😅 No deals found under ${fmt(budget)} right now. Here are today's best offers instead!`;
+        } else if (detectedCategory) {
+          reply = `😅 No exact match for "${detectedCategory}" in your budget. Here are today's top deals!`;
+        } else {
+          reply = `🔍 Couldn't find an exact match for "${userMsg}". Here are our top deals today!`;
+        }
+      }
+
+      setMessages(m => [...m, {
+        role: "assistant",
+        text: reply,
+        products: [...new Map(scored.map(p => [p.id, p])).values()].slice(0, 3)
+      }]);
+      setLoading(false);
+    }, 700); // small delay for natural feel
   };
 
-  const fmt = n => "₹" + n.toLocaleString("en-IN");
+  // Quick prompt suggestions (update based on context)
+  const quickPrompts = [
+    "earphones under ₹1500",
+    "best fashion deals",
+    "top cashback products",
+    "gifts under ₹2000",
+    "sale items today",
+  ];
 
   return (
     <div style={{ position:"fixed",bottom:24,left:24,zIndex:8500,width:340,maxWidth:"calc(100vw - 48px)" }}>
@@ -385,7 +462,7 @@ INSTRUCTIONS:
             <div style={{ width:36,height:36,background:"rgba(255,255,255,.2)",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18 }}>🤖</div>
             <div>
               <div style={{ color:"#fff",fontWeight:800,fontSize:14 }}>SaveKaro AI</div>
-              <div style={{ color:"rgba(255,255,255,.7)",fontSize:11 }}>Find the best deals instantly</div>
+              <div style={{ color:"rgba(255,255,255,.7)",fontSize:11 }}>Smart deal finder • Always online ✅</div>
             </div>
           </div>
           <button onClick={onClose} style={{ background:"none",border:"none",color:"rgba(255,255,255,.8)",fontSize:20,cursor:"pointer" }}>✕</button>
@@ -398,28 +475,35 @@ INSTRUCTIONS:
               <div style={{ maxWidth:"85%",background:m.role==="user"?"linear-gradient(135deg,#FF5722,#FF9800)":D.input,color:m.role==="user"?"#fff":D.text,padding:"10px 14px",borderRadius:m.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",fontSize:13,lineHeight:1.6 }}>
                 {m.text}
               </div>
-              {/* Product quick-add cards from AI response */}
+              {/* Product cards shown by AI */}
               {m.products?.map(p => (
                 <div key={p.id} onClick={() => onShop(p.slug, p.store, p)}
-                  style={{ maxWidth:"90%",background:D.card,border:`1px solid ${D.border}`,borderRadius:12,padding:"10px 12px",cursor:"pointer",display:"flex",gap:10,alignItems:"center" }}>
-                  <img src={p.image} alt={p.title} style={{ width:44,height:44,borderRadius:8,objectFit:"cover" }} />
+                  style={{ maxWidth:"90%",background:D.card,border:`1px solid ${D.border}`,borderRadius:12,padding:"10px 12px",cursor:"pointer",display:"flex",gap:10,alignItems:"center",transition:"transform .15s",boxShadow:"0 2px 8px rgba(0,0,0,.06)" }}
+                  onMouseEnter={e => e.currentTarget.style.transform="translateY(-2px)"}
+                  onMouseLeave={e => e.currentTarget.style.transform="translateY(0)"}>
+                  <img src={p.image} alt={p.title} style={{ width:44,height:44,borderRadius:8,objectFit:"cover",flexShrink:0 }} />
                   <div style={{ flex:1,minWidth:0 }}>
                     <div style={{ fontSize:12,fontWeight:700,color:D.text,lineHeight:1.3,marginBottom:3,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden" }}>{p.title}</div>
-                    <div style={{ display:"flex",gap:6,alignItems:"center" }}>
+                    <div style={{ display:"flex",gap:6,alignItems:"center",flexWrap:"wrap" }}>
                       <span style={{ fontSize:13,fontWeight:900,color:"#FF5722" }}>{fmt(p.price)}</span>
                       <span style={{ fontSize:10,background:"#FF572222",color:"#FF5722",padding:"1px 6px",borderRadius:8,fontWeight:700 }}>+{p.cashbackPct}% back</span>
+                      <span style={{ fontSize:10,background:"#48BB7822",color:"#48BB78",padding:"1px 6px",borderRadius:8,fontWeight:700 }}>{Math.round(((p.mrp-p.price)/p.mrp)*100)}% OFF</span>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
           ))}
+
           {loading && (
-            <div style={{ display:"flex",alignItems:"center",gap:6,color:D.sub,fontSize:13 }}>
-              <div style={{ display:"flex",gap:3 }}>
-                {[0,1,2].map(i => <span key={i} style={{ width:6,height:6,borderRadius:"50%",background:"#6C63FF",animation:`blink 1.2s ${i*0.2}s infinite` }} />)}
+            <div style={{ display:"flex",alignItems:"center",gap:8,color:D.sub,fontSize:13 }}>
+              <div style={{ display:"flex",gap:4 }}>
+                {[0,1,2].map(i => (
+                  <span key={i} style={{ width:7,height:7,borderRadius:"50%",background:"#6C63FF",display:"inline-block",animation:`chatBlink 1.2s ${i*0.2}s infinite` }} />
+                ))}
               </div>
-              Finding deals…
+              <span>Searching deals…</span>
+              <style>{`@keyframes chatBlink{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(1.3)}}`}</style>
             </div>
           )}
           <div ref={bottomRef} />
@@ -427,17 +511,27 @@ INSTRUCTIONS:
 
         {/* Quick prompts */}
         <div style={{ padding:"0 12px 8px",display:"flex",gap:6,overflowX:"auto" }}>
-          {["earphones under ₹1500","best fashion deals","top cashback products","sale items"].map(q => (
-            <button key={q} onClick={() => { setInput(q); }} style={{ background:D.input,border:`1px solid ${D.border}`,borderRadius:20,padding:"5px 12px",fontSize:11,whiteSpace:"nowrap",cursor:"pointer",color:D.sub,fontFamily:"inherit",fontWeight:600 }}>{q}</button>
+          {quickPrompts.map(q => (
+            <button key={q} onClick={() => setInput(q)}
+              style={{ background:D.input,border:`1px solid ${D.border}`,borderRadius:20,padding:"5px 12px",fontSize:11,whiteSpace:"nowrap",cursor:"pointer",color:D.sub,fontFamily:"inherit",fontWeight:600,flexShrink:0 }}>
+              {q}
+            </button>
           ))}
         </div>
 
         {/* Input */}
         <div style={{ padding:"10px 12px",borderTop:`1px solid ${D.border}`,display:"flex",gap:8 }}>
-          <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key==="Enter" && sendMessage()} placeholder="Ask me anything…"
-            style={{ flex:1,padding:"10px 14px",borderRadius:12,border:`1.5px solid ${D.inputBorder}`,fontSize:13,outline:"none",background:D.input,color:D.text,fontFamily:"inherit" }} />
-          <button onClick={sendMessage} disabled={!input.trim()||loading}
-            style={{ background:"linear-gradient(135deg,#6C63FF,#4A90E2)",border:"none",borderRadius:12,padding:"10px 14px",cursor:input.trim()?"pointer":"not-allowed",fontSize:16 }}>
+          <input
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key==="Enter" && sendMessage()}
+            placeholder="Ask me anything…"
+            style={{ flex:1,padding:"10px 14px",borderRadius:12,border:`1.5px solid ${D.inputBorder}`,fontSize:13,outline:"none",background:D.input,color:D.text,fontFamily:"inherit" }}
+          />
+          <button
+            onClick={sendMessage}
+            disabled={!input.trim() || loading}
+            style={{ background:"linear-gradient(135deg,#6C63FF,#4A90E2)",border:"none",borderRadius:12,padding:"10px 14px",cursor:input.trim()&&!loading?"pointer":"not-allowed",fontSize:16,opacity:input.trim()&&!loading?1:.6 }}>
             🚀
           </button>
         </div>

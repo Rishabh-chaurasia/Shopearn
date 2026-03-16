@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import emailjs from "@emailjs/browser";import { useState, useEffect, useRef } from "react";
 import { REDIRECT_MAP, SITE, PRODUCTS, COUPONS, STORES, BANNERS, CATEGORIES, SORT_OPTIONS } from "./data.js";
 import { usePersist, useCountdown, useToast, usePoints, useAuth } from "./hooks.js";
 import { SpinWheel, ShareButtons, ExpiryTimer, LoyaltyBar, LoginModal, AIChatbot, ProfileDropdown } from "./components.jsx";
@@ -18,6 +18,108 @@ const goTo = (slug, storeName, showToast) => {
   if (!real) return;
   showToast(`Opening ${storeName}… Cashback tracked! 💰`);
   setTimeout(() => window.open(real, "_blank", "noopener,noreferrer"), 650);
+};
+
+// ── HINDI TRANSLATION MAP ──────────────────────────────────────────────────
+const LANG = {
+  en: {
+    home: "Home", deals: "Deals", coupons: "Coupons", stores: "Stores",
+    wishlist: "Wishlist", tracker: "My Cashback", howItWorks: "How It Works",
+    legal: "Legal", blog: "Blog", partners: "Partners",
+    searchPlaceholder: "Search deals…", login: "Login",
+    shopNow: "Shop Now & Earn →", outOfStock: "📦 Out of Stock",
+    addToWishlist: "Added to Wishlist ❤️", removeFromWishlist: "Removed from Wishlist",
+    topDeals: "⭐ Top Deals of the Week", topStores: "🏪 Top Stores",
+    viewAll: "View All", findDeals: "Find Deals →",
+    budget: "Budget", exploreDeals: "Explore All Deals 🎁",
+    referEarn: "🏷️ Refer & Earn", copyReferral: "📋 Copy Referral Link",
+    linkCopied: "✅ Link Copied!", howSaveKaroWorks: "How SaveKaro Works",
+    step1T: "Find a Deal", step1D: "Browse from 50+ top Indian brands",
+    step2T: "Click & Shop", step2D: "Go directly to the product via our link",
+    step3T: "Earn Cashback", step3D: "Tracked automatically, paid to your wallet",
+    readyToSave: "Ready to Start Saving?",
+    joinUsers: "Join 5 lakh+ smart shoppers earning cashback every day",
+    dealsFound: n => `${n} deals found`,
+    noDeals: "No deals found", adjustFilters: "Try adjusting filters or budget",
+    sortBy: "Sort by", reset: "Reset",
+    cashbackCalc: "Cashback Calculator", seeEarnings: "See exactly how much you'll earn back",
+    orderAmount: "Order Amount (₹)", cashbackRate: "Cashback Rate",
+    youWillEarn: "You will earn back", on: "on a",
+    order: "order", enterAmount: "Enter an amount above to see your savings",
+    comparePrice: "📊 Price Comparison", bestPrice: "💰 Save up to",
+    byBest: "by choosing best price!",
+    customerReviews: "⭐ Customer Reviews", ratings: "ratings",
+    writeReview: "✍️ Write a Review", submitReview: "Submit Review (+20 pts)",
+    shopNowEarn: n => `Shop Now & Earn ${n}% Back →`,
+    addPurchase: "➕ Add Purchase", savePurchase: "Save Purchase (+100 pts) ✅",
+    myTracker: "💰 My Cashback Tracker", trackAll: "Track all purchases & earnings in one place",
+    totalSpent: "Total Spent", totalEarned: "Total Earned", pending: "Pending",
+    dkPoints: "DK Points", noPurchases: "No purchases yet",
+    startShopping: "Start shopping through our links to track cashback here!",
+    pointsHistory: "🏅 Points History",
+    subscribeAlerts: "Get Exclusive Deal Alerts!", subscribeDesc: "Be first to know about flash sales & extra cashback offers via WhatsApp or Email.",
+    yourName: "Your Name", whatsappOrEmail: "WhatsApp number or Email",
+    subscribeCta: "🔔 Subscribe & Get +25 Points!", noSpam: "No spam. Unsubscribe anytime.",
+    recentlyViewed: "🆕 Recently Viewed",
+    flashSale: "⚡ FLASH SALE", extraOff: "🔥 Extra 5% off marked items",
+    partnerStores: "Partner Stores", cashbackPaid: "Cashback Paid",
+    happyUsers: "Happy Users", free: "Free",
+    referDesc: "Share your link. Your friends shop. You earn bonus points.",
+    howItWorksSubtitle: "3 simple steps to start earning cashback",
+  },
+  hi: {
+    home: "होम", deals: "डील्स", coupons: "कूपन", stores: "स्टोर्स",
+    wishlist: "विशलिस्ट", tracker: "मेरा कैशबैक", howItWorks: "कैसे काम करता है",
+    legal: "नियम", blog: "ब्लॉग", partners: "पार्टनर",
+    searchPlaceholder: "डील्स खोजें…", login: "लॉगिन",
+    shopNow: "अभी खरीदें और कमाएं →", outOfStock: "📦 स्टॉक में नहीं",
+    addToWishlist: "विशलिस्ट में जोड़ा ❤️", removeFromWishlist: "विशलिस्ट से हटाया",
+    topDeals: "⭐ इस हफ्ते की टॉप डील्स", topStores: "🏪 टॉप स्टोर्स",
+    viewAll: "सभी देखें", findDeals: "डील्स खोजें →",
+    budget: "बजट", exploreDeals: "सभी डील्स देखें 🎁",
+    referEarn: "🏷️ रेफर करें और कमाएं", copyReferral: "📋 रेफरल लिंक कॉपी करें",
+    linkCopied: "✅ लिंक कॉपी हो गया!", howSaveKaroWorks: "SaveKaro कैसे काम करता है",
+    step1T: "डील खोजें", step1D: "50+ टॉप भारतीय ब्रांड्स में से चुनें",
+    step2T: "क्लिक करें और खरीदें", step2D: "हमारे लिंक से सीधे प्रोडक्ट पर जाएं",
+    step3T: "कैशबैक कमाएं", step3D: "अपने आप ट्रैक होता है, वॉलेट में मिलता है",
+    readyToSave: "बचत शुरू करने के लिए तैयार हैं?",
+    joinUsers: "5 लाख+ स्मार्ट शॉपर्स से जुड़ें जो रोज कैशबैक कमाते हैं",
+    dealsFound: n => `${n} डील्स मिलीं`,
+    noDeals: "कोई डील नहीं मिली", adjustFilters: "फ़िल्टर या बजट बदलकर देखें",
+    sortBy: "क्रमबद्ध करें", reset: "रीसेट",
+    cashbackCalc: "कैशबैक कैलकुलेटर", seeEarnings: "देखें आप कितना वापस पाएंगे",
+    orderAmount: "ऑर्डर राशि (₹)", cashbackRate: "कैशबैक दर",
+    youWillEarn: "आप वापस पाएंगे", on: "पर",
+    order: "ऑर्डर", enterAmount: "राशि डालें और बचत देखें",
+    comparePrice: "📊 मूल्य तुलना", bestPrice: "💰 बचाएं",
+    byBest: "सबसे अच्छी कीमत चुनकर!",
+    customerReviews: "⭐ ग्राहक समीक्षाएं", ratings: "रेटिंग्स",
+    writeReview: "✍️ समीक्षा लिखें", submitReview: "समीक्षा दें (+20 pts)",
+    shopNowEarn: n => `अभी खरीदें और ${n}% वापस पाएं →`,
+    addPurchase: "➕ खरीदारी जोड़ें", savePurchase: "खरीदारी सेव करें (+100 pts) ✅",
+    myTracker: "💰 मेरा कैशबैक ट्रैकर", trackAll: "सभी खरीदारी और कमाई एक जगह",
+    totalSpent: "कुल खर्च", totalEarned: "कुल कमाई", pending: "बाकी",
+    dkPoints: "DK पॉइंट्स", noPurchases: "अभी तक कोई खरीदारी नहीं",
+    startShopping: "हमारे लिंक से खरीदारी शुरू करें और यहाँ ट्रैक करें!",
+    pointsHistory: "🏅 पॉइंट्स इतिहास",
+    subscribeAlerts: "एक्सक्लूसिव डील अलर्ट पाएं!", subscribeDesc: "फ्लैश सेल और एक्स्ट्रा कैशबैक की जानकारी सबसे पहले पाएं।",
+    yourName: "आपका नाम", whatsappOrEmail: "WhatsApp नंबर या Email",
+    subscribeCta: "🔔 सब्सक्राइब करें और +25 पॉइंट्स पाएं!", noSpam: "स्पैम नहीं। कभी भी अनसब्सक्राइब करें।",
+    recentlyViewed: "🆕 हाल में देखा",
+    flashSale: "⚡ फ्लैश सेल", extraOff: "🔥 चिह्नित वस्तुओं पर 5% अतिरिक्त छूट",
+    partnerStores: "पार्टनर स्टोर्स", cashbackPaid: "कैशबैक दिया गया",
+    happyUsers: "खुश उपयोगकर्ता", free: "बिल्कुल मुफ्त",
+    referDesc: "अपना लिंक शेयर करें। दोस्त खरीदें। आप बोनस पॉइंट्स कमाएं।",
+    howItWorksSubtitle: "कैशबैक शुरू करने के 3 आसान कदम",
+  }
+};
+
+// ── REACTIVE TRANSLATION HELPER ────────────────────────────────────────────
+// Returns a T() function that is bound to the current lang value.
+// Called inside App component so it re-creates on every lang state change.
+const getT = (lang) => (key, ...args) => {
+  const v = LANG[lang]?.[key] ?? LANG.en[key] ?? key;
+  return typeof v === "function" ? v(...args) : v;
 };
 
 export default function App() {
@@ -56,10 +158,10 @@ export default function App() {
   const [showAdblock, setShowAdblock] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [exitIntentShown, setExitIntentShown] = usePersist("dk_exit_shown", false);
-  const [showPriceDrop, setShowPriceDrop] = useState(null);   // product obj
-  const [showEMI, setShowEMI] = useState(null);               // product obj
+  const [showPriceDrop, setShowPriceDrop] = useState(null);
+  const [showEMI, setShowEMI] = useState(null);
   const [showGifting, setShowGifting] = useState(false);
-  const [showShareCard, setShowShareCard] = useState(null);   // product obj
+  const [showShareCard, setShowShareCard] = useState(null);
   const [showCityDeals, setShowCityDeals] = useState(false);
   const [showRetargeting, setShowRetargeting] = useState(false);
   const [retargetingDismissed, setRetargetingDismissed] = usePersist("dk_ret_dismissed", false);
@@ -77,6 +179,9 @@ export default function App() {
   const { points, history: pointsHistory, award } = usePoints();
   const flashTime = useCountdown(FLASH_END);
 
+  // ── REACTIVE T() — re-creates whenever lang changes ──────────────────────
+  const T = getT(lang);
+
   // Auto-show newsletter after 10s
   useEffect(() => {
     if (nlDone) return;
@@ -90,8 +195,6 @@ export default function App() {
     const t = setTimeout(() => { setShowSpin(true); setSpinShown(true); }, 20000);
     return () => clearTimeout(t);
   }, [spinShown]);
-
-  // Banner rotation
 
   // Exit intent detector
   useEffect(() => {
@@ -113,7 +216,7 @@ export default function App() {
     return () => clearTimeout(t);
   }, []);
 
-  // Simulate initial load (replace with real data fetch)
+  // Simulate initial load
   useEffect(() => {
     const t = setTimeout(() => setIsLoading(false), 800);
     return () => clearTimeout(t);
@@ -128,7 +231,7 @@ export default function App() {
     return () => clearTimeout(t);
   }, [recentlyViewed, retargetingDismissed]);
 
-  // Adblock detection (simple heuristic)
+  // Adblock detection
   useEffect(() => {
     const t = setTimeout(() => {
       const testAd = document.createElement("div");
@@ -171,7 +274,7 @@ export default function App() {
   const toggleWishlist = (product) => {
     setWishlist(prev => {
       const exists = prev.find(p => p.id === product.id);
-      showToast(exists ? "Removed from Wishlist" : "Added to Wishlist ❤️", exists ? "info" : "success");
+      showToast(exists ? T("removeFromWishlist") : T("addToWishlist"), exists ? "info" : "success");
       if (!exists) award(5, `Wishlisted: ${product.title}`);
       return exists ? prev.filter(p => p.id !== product.id) : [...prev, product];
     });
@@ -179,7 +282,12 @@ export default function App() {
 
   const handleNlSubmit = () => {
     if (!nlForm.name || !nlForm.contact) { showToast("Please fill both fields", "info"); return; }
-    // INTEGRATION: emailjs.send("SERVICE_ID", "TEMPLATE_ID", { name: nlForm.name, contact: nlForm.contact });
+    emailjs.send(
+      "service_i46thd9",
+      "template_vlyzseg",
+      { name: nlForm.name, contact: nlForm.contact, time: new Date().toLocaleString("en-IN") },
+      "DoNI46e520c5ajQHm"
+    ).catch(err => console.warn("EmailJS:", err));
     setNlDone(true); setShowNewsletter(false);
     award(25, "Newsletter signup");
     showToast("🎉 Subscribed! You'll get the best deals first.");
@@ -262,12 +370,12 @@ export default function App() {
           <div style={MB}>
             <button onClick={() => setShowNewsletter(false)} style={{ position:"absolute",top:14,right:18,background:"none",border:"none",fontSize:22,cursor:"pointer",color:D.sub }}>✕</button>
             <div style={{ fontSize:52,textAlign:"center",marginBottom:10 }}>📧</div>
-            <h2 style={{ fontSize:22,fontWeight:900,textAlign:"center",marginBottom:6 }}>Get Exclusive Deal Alerts!</h2>
-            <p style={{ color:D.sub,fontSize:14,textAlign:"center",marginBottom:24,lineHeight:1.6 }}>Be first to know about flash sales & extra cashback offers via WhatsApp or Email.</p>
-            <input value={nlForm.name} onChange={e => setNlForm(f=>({...f,name:e.target.value}))} placeholder="Your Name" style={{ width:"100%",padding:"12px 16px",borderRadius:10,border:`1.5px solid ${D.inputBorder}`,fontSize:14,marginBottom:12,outline:"none",fontFamily:"inherit",background:D.input,color:D.text }} />
-            <input value={nlForm.contact} onChange={e => setNlForm(f=>({...f,contact:e.target.value}))} placeholder="WhatsApp number or Email" style={{ width:"100%",padding:"12px 16px",borderRadius:10,border:`1.5px solid ${D.inputBorder}`,fontSize:14,marginBottom:20,outline:"none",fontFamily:"inherit",background:D.input,color:D.text }} />
-            <button onClick={handleNlSubmit} style={{ width:"100%",padding:"14px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#FF5722,#FF9800)",color:"#fff",fontWeight:800,fontSize:15,cursor:"pointer",fontFamily:"inherit" }}>🔔 Subscribe & Get +25 Points!</button>
-            <p style={{ fontSize:11,color:D.sub,textAlign:"center",marginTop:12 }}>No spam. Unsubscribe anytime.</p>
+            <h2 style={{ fontSize:22,fontWeight:900,textAlign:"center",marginBottom:6 }}>{T("subscribeAlerts")}</h2>
+            <p style={{ color:D.sub,fontSize:14,textAlign:"center",marginBottom:24,lineHeight:1.6 }}>{T("subscribeDesc")}</p>
+            <input value={nlForm.name} onChange={e => setNlForm(f=>({...f,name:e.target.value}))} placeholder={T("yourName")} style={{ width:"100%",padding:"12px 16px",borderRadius:10,border:`1.5px solid ${D.inputBorder}`,fontSize:14,marginBottom:12,outline:"none",fontFamily:"inherit",background:D.input,color:D.text }} />
+            <input value={nlForm.contact} onChange={e => setNlForm(f=>({...f,contact:e.target.value}))} placeholder={T("whatsappOrEmail")} style={{ width:"100%",padding:"12px 16px",borderRadius:10,border:`1.5px solid ${D.inputBorder}`,fontSize:14,marginBottom:20,outline:"none",fontFamily:"inherit",background:D.input,color:D.text }} />
+            <button onClick={handleNlSubmit} style={{ width:"100%",padding:"14px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#FF5722,#FF9800)",color:"#fff",fontWeight:800,fontSize:15,cursor:"pointer",fontFamily:"inherit" }}>{T("subscribeCta")}</button>
+            <p style={{ fontSize:11,color:D.sub,textAlign:"center",marginTop:12 }}>{T("noSpam")}</p>
           </div>
         </div>
       )}
@@ -278,14 +386,14 @@ export default function App() {
           <div style={MB}>
             <button onClick={() => setShowCalc(false)} style={{ position:"absolute",top:14,right:18,background:"none",border:"none",fontSize:22,cursor:"pointer",color:D.sub }}>✕</button>
             <div style={{ fontSize:48,textAlign:"center",marginBottom:10 }}>🏆</div>
-            <h2 style={{ fontSize:20,fontWeight:900,textAlign:"center",marginBottom:4 }}>Cashback Calculator</h2>
-            <p style={{ color:D.sub,fontSize:13,textAlign:"center",marginBottom:24 }}>See exactly how much you'll earn back</p>
-            <label style={{ fontSize:13,fontWeight:600,color:D.sub,display:"block",marginBottom:6 }}>Order Amount (₹)</label>
+            <h2 style={{ fontSize:20,fontWeight:900,textAlign:"center",marginBottom:4 }}>{T("cashbackCalc")}</h2>
+            <p style={{ color:D.sub,fontSize:13,textAlign:"center",marginBottom:24 }}>{T("seeEarnings")}</p>
+            <label style={{ fontSize:13,fontWeight:600,color:D.sub,display:"block",marginBottom:6 }}>{T("orderAmount")}</label>
             <input type="number" value={calcAmount} onChange={e => setCalcAmount(e.target.value)} placeholder="e.g. 5000" style={{ width:"100%",padding:"12px 16px",borderRadius:10,border:`1.5px solid ${D.inputBorder}`,fontSize:15,marginBottom:18,outline:"none",fontFamily:"inherit",background:D.input,color:D.text }} />
-            <label style={{ fontSize:13,fontWeight:600,color:D.sub,display:"block",marginBottom:8 }}>Cashback Rate: <span style={{ color:"#FF5722",fontWeight:800 }}>{calcPct}%</span></label>
+            <label style={{ fontSize:13,fontWeight:600,color:D.sub,display:"block",marginBottom:8 }}>{T("cashbackRate")}: <span style={{ color:"#FF5722",fontWeight:800 }}>{calcPct}%</span></label>
             <input type="range" min={1} max={20} value={calcPct} onChange={e => setCalcPct(Number(e.target.value))} style={{ marginBottom:24 }} />
             <div style={{ background:dark?"#1e2130":"#FFF8F6",border:"2px solid #FF572222",borderRadius:16,padding:"20px",textAlign:"center" }}>
-              {calcAmount ? <><div style={{ fontSize:13,color:D.sub,marginBottom:4 }}>You will earn back</div><div style={{ fontSize:38,fontWeight:900,color:"#FF5722" }}>{fmt(calcSaving)}</div><div style={{ fontSize:13,color:D.sub,marginTop:4 }}>on a {fmt(Number(calcAmount))} order</div></> : <div style={{ color:D.sub,fontSize:14 }}>Enter an amount above to see your savings</div>}
+              {calcAmount ? <><div style={{ fontSize:13,color:D.sub,marginBottom:4 }}>{T("youWillEarn")}</div><div style={{ fontSize:38,fontWeight:900,color:"#FF5722" }}>{fmt(calcSaving)}</div><div style={{ fontSize:13,color:D.sub,marginTop:4 }}>{T("on")} {fmt(Number(calcAmount))} {T("order")}</div></> : <div style={{ color:D.sub,fontSize:14 }}>{T("enterAmount")}</div>}
             </div>
           </div>
         </div>
@@ -296,7 +404,7 @@ export default function App() {
         <div style={OV} onClick={e => e.target===e.currentTarget && setShowCompare(null)}>
           <div style={MB}>
             <button onClick={() => setShowCompare(null)} style={{ position:"absolute",top:14,right:18,background:"none",border:"none",fontSize:22,cursor:"pointer",color:D.sub }}>✕</button>
-            <h2 style={{ fontSize:18,fontWeight:900,marginBottom:4 }}>📊 Price Comparison</h2>
+            <h2 style={{ fontSize:18,fontWeight:900,marginBottom:4 }}>{T("comparePrice")}</h2>
             <p style={{ color:D.sub,fontSize:13,marginBottom:20 }}>{showCompare.title}</p>
             {Object.entries(showCompare.comparePrice).map(([store, price]) => {
               const best = price === Math.min(...Object.values(showCompare.comparePrice));
@@ -313,7 +421,7 @@ export default function App() {
               );
             })}
             <div style={{ marginTop:14,padding:"12px 16px",background:dark?"#1e2130":"#FFF8F6",borderRadius:12,fontSize:13,color:"#FF5722",fontWeight:700,textAlign:"center" }}>
-              💰 Save up to {fmt(Math.max(...Object.values(showCompare.comparePrice))-Math.min(...Object.values(showCompare.comparePrice)))} by choosing best price!
+              {T("bestPrice")} {fmt(Math.max(...Object.values(showCompare.comparePrice))-Math.min(...Object.values(showCompare.comparePrice)))} {T("byBest")}
             </div>
           </div>
         </div>
@@ -324,13 +432,13 @@ export default function App() {
         <div style={OV} onClick={e => e.target===e.currentTarget && setShowReview(null)}>
           <div style={{ ...MB,maxWidth:500 }}>
             <button onClick={() => setShowReview(null)} style={{ position:"absolute",top:14,right:18,background:"none",border:"none",fontSize:22,cursor:"pointer",color:D.sub }}>✕</button>
-            <h2 style={{ fontSize:18,fontWeight:900,marginBottom:4 }}>⭐ Customer Reviews</h2>
+            <h2 style={{ fontSize:18,fontWeight:900,marginBottom:4 }}>{T("customerReviews")}</h2>
             <p style={{ color:D.sub,fontSize:13,marginBottom:14 }}>{showReview.title}</p>
             <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:16,padding:"12px 16px",background:dark?"#1e2130":"#F7F8FC",borderRadius:12 }}>
               <div style={{ fontSize:34,fontWeight:900,color:"#F6AD55" }}>{showReview.rating}</div>
               <div>
                 <div>{[1,2,3,4,5].map(s => <span key={s} style={{ color:s<=Math.round(showReview.rating)?"#F6AD55":"#CBD5E0",fontSize:16 }}>★</span>)}</div>
-                <div style={{ fontSize:12,color:D.sub }}>{showReview.reviews.toLocaleString()} ratings</div>
+                <div style={{ fontSize:12,color:D.sub }}>{showReview.reviews.toLocaleString()} {T("ratings")}</div>
               </div>
             </div>
             {showReview.userReviews.map((r,i) => (
@@ -350,7 +458,7 @@ export default function App() {
             ))}
             <WriteReview D={D} product={showReview} onSubmit={(r) => { showToast("Review submitted! +20 pts 🎉"); award(20,"Submitted review"); setShowReview(null); }} />
             <button onClick={() => { setShowReview(null); handleShop(showReview.slug, showReview.store, showReview); }} style={{ width:"100%",padding:"12px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#FF5722,#FF9800)",color:"#fff",fontWeight:800,fontSize:14,cursor:"pointer",marginTop:8,fontFamily:"inherit" }}>
-              Shop Now & Earn {showReview.cashbackPct}% Back →
+              {T("shopNowEarn", showReview.cashbackPct)}
             </button>
           </div>
         </div>
@@ -361,7 +469,7 @@ export default function App() {
         <div style={OV} onClick={e => e.target===e.currentTarget && setShowAddPurchase(false)}>
           <div style={MB}>
             <button onClick={() => setShowAddPurchase(false)} style={{ position:"absolute",top:14,right:18,background:"none",border:"none",fontSize:22,cursor:"pointer",color:D.sub }}>✕</button>
-            <h2 style={{ fontSize:18,fontWeight:900,marginBottom:20 }}>➕ Add Purchase</h2>
+            <h2 style={{ fontSize:18,fontWeight:900,marginBottom:20 }}>{T("addPurchase")}</h2>
             {[["Platform / Store","platform","select"],["Product Name","product","text"],["Amount Paid (₹)","amount","number"],["Cashback Earned (₹)","cashback","number"],["Date","date","date"]].map(([label,key,type]) => (
               <div key={key} style={{ marginBottom:14 }}>
                 <label style={{ fontSize:12,fontWeight:600,color:D.sub,display:"block",marginBottom:5 }}>{label}</label>
@@ -382,7 +490,7 @@ export default function App() {
                 ))}
               </div>
             </div>
-            <button onClick={addPurchase} style={{ width:"100%",padding:"13px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#FF5722,#FF9800)",color:"#fff",fontWeight:800,fontSize:15,cursor:"pointer",fontFamily:"inherit" }}>Save Purchase (+100 pts) ✅</button>
+            <button onClick={addPurchase} style={{ width:"100%",padding:"13px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#FF5722,#FF9800)",color:"#fff",fontWeight:800,fontSize:15,cursor:"pointer",fontFamily:"inherit" }}>{T("savePurchase")}</button>
           </div>
         </div>
       )}
@@ -391,8 +499,10 @@ export default function App() {
       {mobileMenuOpen && (
         <div style={{ position:"fixed",inset:0,zIndex:6000 }} onClick={() => setMobileMenuOpen(false)}>
           <div style={{ position:"absolute",top:64,right:0,width:260,background:D.nav,boxShadow:"0 8px 32px rgba(0,0,0,.2)",borderRadius:"0 0 0 16px",padding:"12px 0",maxHeight:"90vh",overflowY:"auto" }} onClick={e => e.stopPropagation()}>
-            {[["home","🏠 Home"],["deals","🔥 Deals"],["coupons","🎟️ Coupons"],["stores","🏪 Stores"],["wishlist",`❤️ Wishlist${wishlist.length>0?" ("+wishlist.length+")":""}`],["tracker","💰 My Cashback"],["howItWorks","❓ How It Works"],["legal","📜 Legal"],["blog","📰 Blog"],["partners","🤝"]].map(([p,label]) => (
-              <button key={p} onClick={() => { setPage(p); setMobileMenuOpen(false); }} style={{ display:"block",width:"100%",padding:"13px 22px",background:"none",border:"none",textAlign:"left",fontWeight:600,fontSize:14,cursor:"pointer",color:page===p?"#FF5722":D.text,fontFamily:"inherit",borderLeft:page===p?"3px solid #FF5722":"3px solid transparent" }}>{label}</button>
+            {[["home","🏠"],["deals","🔥"],["coupons","🎟️"],["stores","🏪"],["wishlist","❤️"],["tracker","💰"],["howItWorks","❓"],["legal","📜"],["blog","📰"],["partners","🤝"]].map(([p,icon]) => (
+              <button key={p} onClick={() => { setPage(p); setMobileMenuOpen(false); }} style={{ display:"block",width:"100%",padding:"13px 22px",background:"none",border:"none",textAlign:"left",fontWeight:600,fontSize:14,cursor:"pointer",color:page===p?"#FF5722":D.text,fontFamily:"inherit",borderLeft:page===p?"3px solid #FF5722":"3px solid transparent" }}>
+                {icon} {T(p)}
+              </button>
             ))}
             <div style={{ borderTop:`1px solid ${D.border}`,margin:"8px 22px",paddingTop:12,display:"flex",gap:8 }}>
               <button onClick={() => { setDark(d=>!d); setMobileMenuOpen(false); }} style={{ background:"none",border:`1px solid ${D.border}`,borderRadius:8,padding:"7px 12px",cursor:"pointer",color:D.text,fontSize:13 }}>{dark?"☀️":"🌙"}</button>
@@ -416,6 +526,7 @@ export default function App() {
         style={{ position:"fixed",bottom:168,left:22,zIndex:7000,background:"linear-gradient(135deg,#FF5722,#FF9800)",borderRadius:"50%",width:52,height:52,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,boxShadow:"0 6px 20px rgba(255,87,34,.4)" }}>🏆</button>
       <button onClick={() => setShowSpin(true)} className="fab"
         style={{ position:"fixed",bottom:104,left:22,zIndex:7000,background:"linear-gradient(135deg,#F6AD55,#DD6B20)",borderRadius:"50%",width:52,height:52,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,boxShadow:"0 6px 20px rgba(246,173,85,.45)" }}>🎰</button>
+
       {/* GROWTH COMPONENTS */}
       {showExitIntent && <ExitIntentPopup D={D} onShop={handleShop} onClose={() => setShowExitIntent(false)} />}
       {showAdblock && <AntiAdblockBanner D={D} onClose={() => setShowAdblock(false)} />}
@@ -441,27 +552,27 @@ export default function App() {
 
       {/* FLASH BAR */}
       <div style={{ background:"linear-gradient(90deg,#1a202c,#2d3748)",padding:"8px 5%",display:"flex",alignItems:"center",justifyContent:"center",gap:14,flexWrap:"wrap" }}>
-        <span style={{ color:"#FC8181",fontWeight:800,fontSize:12,animation:"blink 1.5s infinite" }}>⚡ FLASH SALE</span>
+        <span style={{ color:"#FC8181",fontWeight:800,fontSize:12,animation:"blink 1.5s infinite" }}>{T("flashSale")}</span>
         {[flashTime.h,flashTime.m,flashTime.s].map((v,i) => (
           <span key={i} style={{ display:"inline-flex",alignItems:"center",gap:3 }}>
             <span style={{ background:"#FF5722",color:"#fff",fontWeight:900,fontSize:13,padding:"2px 8px",borderRadius:7,minWidth:32,textAlign:"center" }}>{v}</span>
             {i<2 && <span style={{ color:"#FF5722",fontWeight:900 }}>:</span>}
           </span>
         ))}
-        <span style={{ color:"#68D391",fontSize:11,fontWeight:700 }}>🔥 Extra 5% off marked items</span>
+        <span style={{ color:"#68D391",fontSize:11,fontWeight:700 }}>{T("extraOff")}</span>
       </div>
 
       {/* NAVBAR */}
       <nav style={{ background:D.nav,position:"sticky",top:0,zIndex:500,boxShadow:`0 2px 16px rgba(0,0,0,${dark?.15:.08})`,padding:"0 4%",display:"flex",alignItems:"center",justifyContent:"space-between",height:64,transition:"background .3s",gap:12 }}>
         <div onClick={() => setPage("home")} onDoubleClick={() => setShowAdmin(true)} onContextMenu={e=>{e.preventDefault();setShowWhatsAppBroadcast(true);}} style={{ display:"flex",alignItems:"center",gap:8,cursor:"pointer",userSelect:"none",flexShrink:0 }} title="Double-click for admin">
           <div style={{ background:"linear-gradient(135deg,#FF5722,#FF9800)",borderRadius:10,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18 }}>💸</div>
-          <span style={{ fontSize:20,fontWeight:900,letterSpacing:-.5 }}>Deal<span style={{ color:"#FF5722" }}>Karo</span></span>
+          <span style={{ fontSize:20,fontWeight:900,letterSpacing:-.5 }}>Save<span style={{ color:"#FF5722" }}>Karo</span></span>
         </div>
 
         <div className="dnav" style={{ display:"flex",alignItems:"center",gap:18,flex:1,justifyContent:"center" }}>
-          {[["home","Home"],["deals","Deals"],["coupons","Coupons"],["stores","Stores"],["wishlist","❤️"],["tracker","💰"]].map(([p,label]) => (
+          {[["home"],["deals"],["coupons"],["stores"],["wishlist"],["tracker"]].map(([p]) => (
             <button key={p} onClick={() => setPage(p)} className={`nl2${page===p?" a":""}`} style={{ background:"none",border:"none",cursor:"pointer",fontWeight:600,fontSize:13,color:page===p?"#FF5722":D.sub,padding:"4px 0",fontFamily:"inherit",position:"relative",whiteSpace:"nowrap" }}>
-              {label}
+              {p==="wishlist" ? `❤️ ${T("wishlist")}` : p==="tracker" ? `💰 ${T("tracker")}` : T(p)}
               {p==="wishlist" && wishlist.length>0 && <span style={{ position:"absolute",top:-6,right:-8,background:"#FF5722",color:"#fff",fontSize:9,fontWeight:900,borderRadius:"50%",width:15,height:15,display:"flex",alignItems:"center",justifyContent:"center" }}>{wishlist.length}</span>}
             </button>
           ))}
@@ -470,7 +581,7 @@ export default function App() {
         <div style={{ display:"flex",gap:8,alignItems:"center",flexShrink:0 }}>
           <div className="msrch" style={{ position:"relative",display:"flex",alignItems:"center" }}>
             <span style={{ position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",fontSize:13,color:"#999",pointerEvents:"none",zIndex:1 }}>🔍</span>
-            <input value={search} onChange={e => { setSearch(e.target.value); if(e.target.value) setPage("deals"); }} onKeyDown={e => e.key==="Enter" && setPage("deals")} placeholder="Search deals…"
+            <input value={search} onChange={e => { setSearch(e.target.value); if(e.target.value) setPage("deals"); }} onKeyDown={e => e.key==="Enter" && setPage("deals")} placeholder={T("searchPlaceholder")}
               style={{ padding:"8px 38px 8px 30px",borderRadius:10,border:`1.5px solid ${D.inputBorder}`,fontSize:13,width:180,outline:"none",background:D.input,fontFamily:"inherit",color:D.text }} />
             <button onClick={() => search.trim() && setPage("deals")} style={{ position:"absolute",right:4,top:"50%",transform:"translateY(-50%)",background:"linear-gradient(135deg,#FF5722,#FF9800)",border:"none",borderRadius:6,padding:"4px 8px",cursor:"pointer",color:"#fff",fontSize:11,fontWeight:700,fontFamily:"inherit" }}>Go</button>
           </div>
@@ -484,7 +595,7 @@ export default function App() {
                 {user.avatar}
               </button>
             ) : (
-              <button onClick={() => setShowLogin(true)} style={{ background:"linear-gradient(135deg,#FF5722,#FF9800)",color:"#fff",border:"none",borderRadius:9,padding:"8px 16px",fontWeight:700,cursor:"pointer",fontSize:12,fontFamily:"inherit" }}>Login</button>
+              <button onClick={() => setShowLogin(true)} style={{ background:"linear-gradient(135deg,#FF5722,#FF9800)",color:"#fff",border:"none",borderRadius:9,padding:"8px 16px",fontWeight:700,cursor:"pointer",fontSize:12,fontFamily:"inherit" }}>{T("login")}</button>
             )}
             {showProfile && user && <ProfileDropdown user={user} points={points} D={D} onLogout={() => { logout(); setShowProfile(false); showToast("Signed out"); }} onNavigate={(p) => { setPage(p); setShowProfile(false); }} onClose={() => setShowProfile(false)} />}
           </div>
@@ -492,27 +603,27 @@ export default function App() {
         </div>
       </nav>
 
-      {/* POINTS TICKER (shown when user is logged in) */}
+      {/* POINTS TICKER */}
       {user && (
         <div style={{ background:"linear-gradient(90deg,#6C63FF22,#4A90E222)",borderBottom:`1px solid ${D.border}`,padding:"6px 4%",display:"flex",alignItems:"center",gap:10 }}>
           <span style={{ fontSize:12,fontWeight:700,color:"#6C63FF" }}>🏅 {points} DK Points</span>
           <div style={{ flex:1,background:D.border,borderRadius:999,height:4,overflow:"hidden",maxWidth:200 }}>
             <div style={{ width:`${Math.min(100,(points%500)/5)}%`,height:"100%",background:"linear-gradient(90deg,#6C63FF,#4A90E2)",borderRadius:999 }} />
           </div>
-          <button onClick={() => setPage("tracker")} style={{ background:"none",border:"none",cursor:"pointer",fontSize:11,color:"#6C63FF",fontWeight:700,fontFamily:"inherit" }}>View Tracker →</button>
+          <button onClick={() => setPage("tracker")} style={{ background:"none",border:"none",cursor:"pointer",fontSize:11,color:"#6C63FF",fontWeight:700,fontFamily:"inherit" }}>{T("tracker")} →</button>
         </div>
       )}
 
       {/* PAGES */}
       {isLoading ? (
         <div style={{ padding:"32px 6%" }}><SkeletonGrid count={8} /></div>
-      ) : page==="home"       ? <HomePage D={D} dark={dark} lang={lang} bannerIdx={bannerIdx} setBannerIdx={setBannerIdx} onShop={handleShop} onNavigate={setPage} stores={STORES} wishlist={wishlist} onWishlist={toggleWishlist} onCompare={setShowCompare} onReview={setShowReview} budgetMax={budgetMax} setBudgetMax={setBudgetMax} onReferral={handleReferral} linkCopied={linkCopied} onPriceDrop={setShowPriceDrop} onEMI={setShowEMI} onShareCard={setShowShareCard} onPriceHistory={setShowPriceHistory} />
-      : page==="deals"      ? <DealsPage D={D} dark={dark} lang={lang} products={filtered} categories={CATEGORIES} activeCat={activeCat} setActiveCat={setActiveCat} onShop={handleShop} search={search} setSearch={setSearch} wishlist={wishlist} onWishlist={toggleWishlist} onCompare={setShowCompare} onReview={setShowReview} budgetMax={budgetMax} setBudgetMax={setBudgetMax} sortBy={sortBy} setSortBy={setSortBy} onPriceDrop={setShowPriceDrop} onEMI={setShowEMI} onShareCard={setShowShareCard} onPriceHistory={setShowPriceHistory} />
+      ) : page==="home"       ? <HomePage D={D} dark={dark} lang={lang} T={T} bannerIdx={bannerIdx} setBannerIdx={setBannerIdx} onShop={handleShop} onNavigate={setPage} stores={STORES} wishlist={wishlist} onWishlist={toggleWishlist} onCompare={setShowCompare} onReview={setShowReview} budgetMax={budgetMax} setBudgetMax={setBudgetMax} onReferral={handleReferral} linkCopied={linkCopied} onPriceDrop={setShowPriceDrop} onEMI={setShowEMI} onShareCard={setShowShareCard} onPriceHistory={setShowPriceHistory} />
+      : page==="deals"      ? <DealsPage D={D} dark={dark} lang={lang} T={T} products={filtered} categories={CATEGORIES} activeCat={activeCat} setActiveCat={setActiveCat} onShop={handleShop} search={search} setSearch={setSearch} wishlist={wishlist} onWishlist={toggleWishlist} onCompare={setShowCompare} onReview={setShowReview} budgetMax={budgetMax} setBudgetMax={setBudgetMax} sortBy={sortBy} setSortBy={setSortBy} onPriceDrop={setShowPriceDrop} onEMI={setShowEMI} onShareCard={setShowShareCard} onPriceHistory={setShowPriceHistory} />
       : page==="coupons"    ? <CouponsPage D={D} coupons={COUPONS} onCopy={handleCopy} copied={copied} onShop={handleShop} />
       : page==="stores"     ? <StoresPage D={D} stores={STORES} onShop={handleShop} />
       : page==="wishlist"   ? <WishlistPage D={D} wishlist={wishlist} onShop={handleShop} onWishlist={toggleWishlist} onCompare={setShowCompare} onReview={setShowReview} onNavigate={setPage} onPriceDrop={setShowPriceDrop} onEMI={setShowEMI} onShareCard={setShowShareCard} onPriceHistory={setShowPriceHistory} />
-      : page==="tracker"    ? <TrackerPage D={D} purchases={purchases} setPurchases={setPurchases} totalSpent={totalSpent} totalEarned={totalEarned} totalPending={totalPending} onAdd={() => setShowAddPurchase(true)} points={points} pointsHistory={pointsHistory} />
-      : page==="howItWorks" ? <HowItWorksPage D={D} />
+      : page==="tracker"    ? <TrackerPage D={D} T={T} purchases={purchases} setPurchases={setPurchases} totalSpent={totalSpent} totalEarned={totalEarned} totalPending={totalPending} onAdd={() => setShowAddPurchase(true)} points={points} pointsHistory={pointsHistory} />
+      : page==="howItWorks" ? <HowItWorksPage D={D} T={T} />
       : page==="legal"      ? <LegalPage D={D} />
       : page==="blog"       ? <BlogPage D={D} dark={dark} onNavigate={setPage} />
       : page==="partners"   ? <SubAffiliatePage D={D} />
@@ -522,7 +633,7 @@ export default function App() {
       {/* RECENTLY VIEWED */}
       {recentlyViewed.length > 0 && !["tracker","howItWorks","legal"].includes(page) && (
         <div style={{ padding:"28px 6% 16px",background:D.card,borderTop:`1px solid ${D.border}`,transition:"background .3s" }}>
-          <h3 style={{ fontSize:16,fontWeight:800,marginBottom:14 }}>🆕 Recently Viewed</h3>
+          <h3 style={{ fontSize:16,fontWeight:800,marginBottom:14 }}>{T("recentlyViewed")}</h3>
           <div style={{ display:"flex",gap:12,overflowX:"auto",paddingBottom:6 }}>
             {recentlyViewed.map(p => (
               <div key={p.id} className="ch" onClick={() => handleShop(p.slug, p.store, p)} style={{ minWidth:140,flexShrink:0,background:D.bg,borderRadius:12,overflow:"hidden",cursor:"pointer",border:`1px solid ${D.border}` }}>
@@ -543,7 +654,7 @@ export default function App() {
           <div style={{ maxWidth:240 }}>
             <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}>
               <div style={{ background:"linear-gradient(135deg,#FF5722,#FF9800)",borderRadius:8,width:28,height:28,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14 }}>💸</div>
-              <span style={{ fontSize:18,fontWeight:900,color:"#fff" }}>Deal<span style={{ color:"#FF5722" }}>Karo</span></span>
+              <span style={{ fontSize:18,fontWeight:900,color:"#fff" }}>Save<span style={{ color:"#FF5722" }}>Karo</span></span>
             </div>
             <p style={{ fontSize:12,lineHeight:1.7,marginBottom:12 }}>India's smartest cashback & deals platform.</p>
             <div style={{ display:"flex",gap:8 }}>
@@ -578,7 +689,7 @@ export default function App() {
   );
 }
 
-/* ══════  WRITE REVIEW (user-submitted)  ══════ */
+/* ══════  WRITE REVIEW  ══════ */
 function WriteReview({ D, product, onSubmit }) {
   const [stars, setStars] = useState(0);
   const [text, setText] = useState("");
@@ -599,8 +710,8 @@ function WriteReview({ D, product, onSubmit }) {
   );
 }
 
-/* ══════  PAGE COMPONENTS (abbreviated — import from pages.jsx in real project)  ══════ */
-function HomePage({ D, dark, lang, bannerIdx, setBannerIdx, onShop, onNavigate, stores, wishlist, onWishlist, onCompare, onReview, budgetMax, setBudgetMax, onReferral, linkCopied, onPriceDrop, onEMI, onShareCard, onPriceHistory }) {
+/* ══════  HOME PAGE  ══════ */
+function HomePage({ D, dark, lang, T, bannerIdx, setBannerIdx, onShop, onNavigate, stores, wishlist, onWishlist, onCompare, onReview, budgetMax, setBudgetMax, onReferral, linkCopied, onPriceDrop, onEMI, onShareCard, onPriceHistory }) {
   const b = BANNERS[bannerIdx];
   const topDeals = PRODUCTS.filter(p => p.topDeal);
   return (
@@ -619,64 +730,65 @@ function HomePage({ D, dark, lang, bannerIdx, setBannerIdx, onShop, onNavigate, 
         </div>
       </div>
       <div style={{ background:D.card,padding:"18px 6%",display:"flex",justifyContent:"center",gap:"6%",flexWrap:"wrap",boxShadow:"0 4px 20px rgba(0,0,0,.06)" }}>
-        {[["50+","Partner Stores"],["₹2 Cr+","Cashback Paid"],["5 Lakh+","Happy Users"],["100%","Free"]].map(([v,l]) => <div key={l} style={{ textAlign:"center" }}><div style={{ fontSize:22,fontWeight:900,color:"#FF5722" }}>{v}</div><div style={{ fontSize:11,color:D.sub,fontWeight:600 }}>{l}</div></div>)}
+        {[["50+",T("partnerStores")],["₹2 Cr+",T("cashbackPaid")],["5 Lakh+",T("happyUsers")],["100%",T("free")]].map(([v,l]) => <div key={l} style={{ textAlign:"center" }}><div style={{ fontSize:22,fontWeight:900,color:"#FF5722" }}>{v}</div><div style={{ fontSize:11,color:D.sub,fontWeight:600 }}>{l}</div></div>)}
       </div>
       <div style={{ padding:"28px 6% 0" }}>
         <div style={{ background:D.card,borderRadius:16,padding:"18px 22px",boxShadow:`0 3px 14px rgba(0,0,0,${dark?.12:.07})`,display:"flex",alignItems:"center",gap:20,flexWrap:"wrap" }}>
-          <span style={{ fontWeight:700,fontSize:14,whiteSpace:"nowrap" }}>🎯 Budget: up to <span style={{ color:"#FF5722" }}>{fmt(budgetMax)}</span></span>
+          <span style={{ fontWeight:700,fontSize:14,whiteSpace:"nowrap" }}>🎯 {T("budget")}: up to <span style={{ color:"#FF5722" }}>{fmt(budgetMax)}</span></span>
           <div style={{ flex:1,minWidth:160 }}><input type="range" min={500} max={80000} step={500} value={budgetMax} onChange={e => setBudgetMax(Number(e.target.value))} /></div>
-          <button onClick={() => onNavigate("deals")} style={{ background:"linear-gradient(135deg,#FF5722,#FF9800)",color:"#fff",border:"none",borderRadius:10,padding:"9px 18px",fontWeight:700,cursor:"pointer",fontSize:13,fontFamily:"inherit" }}>Find Deals →</button>
+          <button onClick={() => onNavigate("deals")} style={{ background:"linear-gradient(135deg,#FF5722,#FF9800)",color:"#fff",border:"none",borderRadius:10,padding:"9px 18px",fontWeight:700,cursor:"pointer",fontSize:13,fontFamily:"inherit" }}>{T("findDeals")}</button>
         </div>
       </div>
       <div style={{ padding:"32px 6% 0" }}>
-        <SH D={D} title="🏪 Top Stores" sub="Click any store to earn cashback" cta="View All" onCta={() => onNavigate("stores")} />
+        <SH D={D} title={T("topStores")} sub={lang==="hi"?"किसी भी स्टोर पर क्लिक करें और कैशबैक कमाएं":"Click any store to earn cashback"} cta={T("viewAll")} onCta={() => onNavigate("stores")} />
         <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(108px,1fr))",gap:12,marginTop:16 }}>
           {stores.map(s => <div key={s.name} className="ch" onClick={() => onShop(s.slug,s.name)} style={{ background:D.card,borderRadius:13,padding:"14px 8px",textAlign:"center",cursor:"pointer",boxShadow:`0 2px 12px rgba(0,0,0,${dark?.12:.07})`,border:`1px solid ${D.border}` }}><div style={{ fontSize:26,marginBottom:7 }}>{s.icon}</div><div style={{ fontWeight:700,fontSize:12,marginBottom:3 }}>{s.name}</div><div style={{ fontSize:10,color:s.color,fontWeight:700,background:`${s.color}22`,padding:"2px 7px",borderRadius:18,display:"inline-block" }}>{s.cashback}</div></div>)}
         </div>
       </div>
       <FeaturedDealOfDay D={D} dark={dark} onShop={onShop} />
       <div style={{ padding:"32px 6%" }}>
-        <SH D={D} title="⭐ Top Deals of the Week" sub="Hand-picked best deals — updated every Monday" cta="View All" onCta={() => onNavigate("deals")} />
+        <SH D={D} title={T("topDeals")} sub={lang==="hi"?"हर सोमवार अपडेट होती हैं बेहतरीन डील्स":"Hand-picked best deals — updated every Monday"} cta={T("viewAll")} onCta={() => onNavigate("deals")} />
         <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:16,marginTop:16 }}>
-          {topDeals.map(p => <PC key={p.id} p={p} D={D} dark={dark} onShop={onShop} wishlist={wishlist} onWishlist={onWishlist} onCompare={onCompare} onReview={onReview} featured onPriceDrop={onPriceDrop} onEMI={onEMI} onShareCard={onShareCard} onPriceHistory={onPriceHistory} />)}
+          {topDeals.map(p => <PC key={p.id} p={p} D={D} dark={dark} T={T} onShop={onShop} wishlist={wishlist} onWishlist={onWishlist} onCompare={onCompare} onReview={onReview} featured onPriceDrop={onPriceDrop} onEMI={onEMI} onShareCard={onShareCard} onPriceHistory={onPriceHistory} />)}
         </div>
       </div>
       <div style={{ margin:"0 6% 32px",background:"linear-gradient(135deg,#6C63FF,#4A90E2)",borderRadius:20,padding:"28px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:16 }}>
-        <div><h3 style={{ color:"#fff",fontSize:20,fontWeight:900,marginBottom:6 }}>🏷️ Refer & Earn</h3><p style={{ color:"rgba(255,255,255,.85)",fontSize:13 }}>Share your link. Your friends shop. You earn bonus points.</p></div>
-        <button onClick={onReferral} style={{ background:linkCopied?"#48BB78":"#fff",color:linkCopied?"#fff":"#6C63FF",border:"none",borderRadius:12,padding:"12px 24px",fontWeight:800,cursor:"pointer",fontSize:13,fontFamily:"inherit",flexShrink:0 }}>{linkCopied?"✅ Link Copied!":"📋 Copy Referral Link"}</button>
+        <div><h3 style={{ color:"#fff",fontSize:20,fontWeight:900,marginBottom:6 }}>{T("referEarn")}</h3><p style={{ color:"rgba(255,255,255,.85)",fontSize:13 }}>{T("referDesc")}</p></div>
+        <button onClick={onReferral} style={{ background:linkCopied?"#48BB78":"#fff",color:linkCopied?"#fff":"#6C63FF",border:"none",borderRadius:12,padding:"12px 24px",fontWeight:800,cursor:"pointer",fontSize:13,fontFamily:"inherit",flexShrink:0 }}>{linkCopied?T("linkCopied"):T("copyReferral")}</button>
       </div>
       <div style={{ background:D.card,padding:"48px 6%",textAlign:"center" }}>
-        <h2 style={{ fontSize:24,fontWeight:800,marginBottom:8 }}>How SaveKaro Works</h2>
-        <p style={{ color:D.sub,marginBottom:40,fontSize:14 }}>3 simple steps to start earning cashback</p>
+        <h2 style={{ fontSize:24,fontWeight:800,marginBottom:8 }}>{T("howSaveKaroWorks")}</h2>
+        <p style={{ color:D.sub,marginBottom:40,fontSize:14 }}>{T("howItWorksSubtitle")}</p>
         <div style={{ display:"flex",justifyContent:"center",flexWrap:"wrap",gap:0 }}>
-          {[{n:"01",icon:"🛍️",t:"Find a Deal",d:"Browse from 50+ top Indian brands"},{n:"02",icon:"🖱️",t:"Click & Shop",d:"Go directly to the product via our link"},{n:"03",icon:"💰",t:"Earn Cashback",d:"Tracked automatically, paid to your wallet"}].map((s,i) => (
+          {[{n:"01",icon:"🛍️",tKey:"step1T",dKey:"step1D"},{n:"02",icon:"🖱️",tKey:"step2T",dKey:"step2D"},{n:"03",icon:"💰",tKey:"step3T",dKey:"step3D"}].map((s,i) => (
             <div key={s.n} style={{ maxWidth:220,padding:"0 18px",position:"relative" }}>
               {i<2&&<div style={{ position:"absolute",top:28,right:-14,width:28,height:2,background:"linear-gradient(90deg,#FF5722,#FF9800)" }}/>}
               <div style={{ width:56,height:56,background:"linear-gradient(135deg,#FF5722,#FF9800)",borderRadius:16,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,margin:"0 auto 12px",boxShadow:"0 8px 20px rgba(255,87,34,.3)" }}>{s.icon}</div>
               <div style={{ fontSize:10,color:"#FF5722",fontWeight:800,letterSpacing:1,marginBottom:4 }}>STEP {s.n}</div>
-              <h3 style={{ fontWeight:800,fontSize:15,marginBottom:6 }}>{s.t}</h3>
-              <p style={{ color:D.sub,fontSize:12,lineHeight:1.7 }}>{s.d}</p>
+              <h3 style={{ fontWeight:800,fontSize:15,marginBottom:6 }}>{T(s.tKey)}</h3>
+              <p style={{ color:D.sub,fontSize:12,lineHeight:1.7 }}>{T(s.dKey)}</p>
             </div>
           ))}
         </div>
       </div>
       <div style={{ background:"linear-gradient(135deg,#FF5722,#FF9800)",padding:"44px 6%",textAlign:"center" }}>
-        <h2 style={{ color:"#fff",fontSize:26,fontWeight:900,marginBottom:10 }}>Ready to Start Saving?</h2>
-        <p style={{ color:"rgba(255,255,255,.88)",fontSize:15,marginBottom:24 }}>Join 5 lakh+ smart shoppers earning cashback every day</p>
-        <button onClick={() => onNavigate("deals")} style={{ background:"#fff",color:"#FF5722",border:"none",borderRadius:12,padding:"13px 32px",fontWeight:800,cursor:"pointer",fontSize:15,fontFamily:"inherit" }}>Explore All Deals 🎁</button>
+        <h2 style={{ color:"#fff",fontSize:26,fontWeight:900,marginBottom:10 }}>{T("readyToSave")}</h2>
+        <p style={{ color:"rgba(255,255,255,.88)",fontSize:15,marginBottom:24 }}>{T("joinUsers")}</p>
+        <button onClick={() => onNavigate("deals")} style={{ background:"#fff",color:"#FF5722",border:"none",borderRadius:12,padding:"13px 32px",fontWeight:800,cursor:"pointer",fontSize:15,fontFamily:"inherit" }}>{T("exploreDeals")}</button>
       </div>
     </div>
   );
 }
 
-function DealsPage({ D, dark, lang, products, categories, activeCat, setActiveCat, onShop, search, setSearch, wishlist, onWishlist, onCompare, onReview, budgetMax, setBudgetMax, sortBy, setSortBy, onPriceDrop, onEMI, onShareCard, onPriceHistory }) {
+/* ══════  DEALS PAGE  ══════ */
+function DealsPage({ D, dark, lang, T, products, categories, activeCat, setActiveCat, onShop, search, setSearch, wishlist, onWishlist, onCompare, onReview, budgetMax, setBudgetMax, sortBy, setSortBy, onPriceDrop, onEMI, onShareCard, onPriceHistory }) {
   return (
     <div style={{ padding:"28px 6%" }}>
       <div style={{ display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:12,marginBottom:16 }}>
-        <div><h1 style={{ fontSize:22,fontWeight:800,marginBottom:3 }}>🔥 Top Deals & Offers</h1><p style={{ color:D.sub,fontSize:13 }}>{products.length} deals found</p></div>
+        <div><h1 style={{ fontSize:22,fontWeight:800,marginBottom:3 }}>🔥 {T("deals")}</h1><p style={{ color:D.sub,fontSize:13 }}>{T("dealsFound", products.length)}</p></div>
         <div style={{ position:"relative" }}>
           <span style={{ position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",fontSize:13,color:"#999" }}>🔍</span>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products…" style={{ padding:"10px 14px 10px 32px",borderRadius:11,border:`1.5px solid ${D.inputBorder}`,fontSize:13,width:230,outline:"none",background:D.input,fontFamily:"inherit",color:D.text }} />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder={T("searchPlaceholder")} style={{ padding:"10px 14px 10px 32px",borderRadius:11,border:`1.5px solid ${D.inputBorder}`,fontSize:13,width:230,outline:"none",background:D.input,fontFamily:"inherit",color:D.text }} />
         </div>
       </div>
       <div style={{ background:D.card,borderRadius:14,padding:"12px 16px",marginBottom:16,display:"flex",alignItems:"center",gap:14,flexWrap:"wrap" }}>
@@ -685,17 +797,18 @@ function DealsPage({ D, dark, lang, products, categories, activeCat, setActiveCa
         <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding:"7px 12px",borderRadius:9,border:`1.5px solid ${D.inputBorder}`,fontSize:13,background:D.input,color:D.text,outline:"none",cursor:"pointer" }}>
           {SORT_OPTIONS.map(s => <option key={s.value} value={s.value}>{lang==="hi"?s.labelHi:s.label}</option>)}
         </select>
-        <button onClick={() => setBudgetMax(80000)} style={{ background:"none",border:`1px solid ${D.border}`,borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:11,fontWeight:600,color:D.sub,fontFamily:"inherit" }}>Reset</button>
+        <button onClick={() => setBudgetMax(80000)} style={{ background:"none",border:`1px solid ${D.border}`,borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:11,fontWeight:600,color:D.sub,fontFamily:"inherit" }}>{T("reset")}</button>
       </div>
       <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:22 }}>
         {categories.map(c => <button key={c.id} onClick={() => setActiveCat(c.id)} style={{ padding:"7px 15px",borderRadius:20,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,whiteSpace:"nowrap",fontFamily:"inherit",background:activeCat===c.id?"linear-gradient(135deg,#FF5722,#FF9800)":D.card,color:activeCat===c.id?"#fff":D.sub,boxShadow:activeCat===c.id?"0 4px 14px rgba(255,87,34,.35)":`0 2px 8px rgba(0,0,0,${dark?.12:.07})` }}>{c.icon} {lang==="hi"?c.labelHi:c.label}</button>)}
       </div>
-      {products.length===0 ? <div style={{ textAlign:"center",padding:"70px 0",color:D.sub }}><div style={{ fontSize:52,marginBottom:10 }}>🔍</div><p style={{ fontWeight:700,fontSize:17 }}>No deals found</p><p style={{ fontSize:13,marginTop:7 }}>Try adjusting filters or budget</p></div>
-        : <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:16 }}>{products.map(p => <PC key={p.id} p={p} D={D} dark={dark} onShop={onShop} wishlist={wishlist} onWishlist={onWishlist} onCompare={onCompare} onReview={onReview} onPriceDrop={onPriceDrop} onEMI={onEMI} onShareCard={onShareCard} onPriceHistory={onPriceHistory} />)}</div>}
+      {products.length===0 ? <div style={{ textAlign:"center",padding:"70px 0",color:D.sub }}><div style={{ fontSize:52,marginBottom:10 }}>🔍</div><p style={{ fontWeight:700,fontSize:17 }}>{T("noDeals")}</p><p style={{ fontSize:13,marginTop:7 }}>{T("adjustFilters")}</p></div>
+        : <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:16 }}>{products.map(p => <PC key={p.id} p={p} D={D} dark={dark} T={T} onShop={onShop} wishlist={wishlist} onWishlist={onWishlist} onCompare={onCompare} onReview={onReview} onPriceDrop={onPriceDrop} onEMI={onEMI} onShareCard={onShareCard} onPriceHistory={onPriceHistory} />)}</div>}
     </div>
   );
 }
 
+/* ══════  COUPONS PAGE  ══════ */
 function CouponsPage({ D, coupons, onCopy, copied, onShop }) {
   return (
     <div style={{ padding:"28px 6%" }}>
@@ -723,6 +836,7 @@ function CouponsPage({ D, coupons, onCopy, copied, onShop }) {
   );
 }
 
+/* ══════  STORES PAGE  ══════ */
 function StoresPage({ D, stores, onShop }) {
   return (
     <div style={{ padding:"28px 6%" }}>
@@ -735,22 +849,24 @@ function StoresPage({ D, stores, onShop }) {
   );
 }
 
+/* ══════  WISHLIST PAGE  ══════ */
 function WishlistPage({ D, wishlist, onShop, onWishlist, onCompare, onReview, onNavigate, onPriceDrop, onEMI, onShareCard, onPriceHistory }) {
   if (!wishlist.length) return <div style={{ textAlign:"center",padding:"80px 6%",color:D.sub }}><div style={{ fontSize:60,marginBottom:12 }}>❤️</div><h2 style={{ fontWeight:800,fontSize:20,color:D.text,marginBottom:6 }}>Your Wishlist is Empty</h2><p style={{ fontSize:14,marginBottom:22 }}>Save deals you love and come back anytime</p><button onClick={() => onNavigate("deals")} style={{ background:"linear-gradient(135deg,#FF5722,#FF9800)",color:"#fff",border:"none",borderRadius:12,padding:"12px 28px",fontWeight:800,cursor:"pointer",fontSize:14,fontFamily:"inherit" }}>Browse Deals →</button></div>;
   return <div style={{ padding:"28px 6%" }}><h1 style={{ fontSize:22,fontWeight:800,marginBottom:4 }}>❤️ My Wishlist</h1><p style={{ color:D.sub,fontSize:13,marginBottom:22 }}>{wishlist.length} saved deal{wishlist.length!==1?"s":""}</p><div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:16 }}>{wishlist.map(p => <PC key={p.id} p={p} D={D} onShop={onShop} wishlist={wishlist} onWishlist={onWishlist} onCompare={onCompare} onReview={onReview} onPriceDrop={onPriceDrop} onEMI={onEMI} onShareCard={onShareCard} onPriceHistory={onPriceHistory} />)}</div></div>;
 }
 
-function TrackerPage({ D, purchases, setPurchases, totalSpent, totalEarned, totalPending, onAdd, points, pointsHistory }) {
+/* ══════  TRACKER PAGE  ══════ */
+function TrackerPage({ D, T, purchases, setPurchases, totalSpent, totalEarned, totalPending, onAdd, points, pointsHistory }) {
   const statusColor = { pending:"#F6AD55", confirmed:"#63B3ED", paid:"#68D391" };
   return (
     <div style={{ padding:"28px 6%" }}>
       <div style={{ display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:12,marginBottom:24 }}>
-        <div><h1 style={{ fontSize:22,fontWeight:800,marginBottom:3 }}>💰 My Cashback Tracker</h1><p style={{ color:D.sub,fontSize:13 }}>Track all purchases & earnings in one place</p></div>
-        <button onClick={onAdd} style={{ background:"linear-gradient(135deg,#FF5722,#FF9800)",color:"#fff",border:"none",borderRadius:11,padding:"10px 20px",fontWeight:800,cursor:"pointer",fontSize:13,fontFamily:"inherit" }}>+ Add Purchase</button>
+        <div><h1 style={{ fontSize:22,fontWeight:800,marginBottom:3 }}>{T("myTracker")}</h1><p style={{ color:D.sub,fontSize:13 }}>{T("trackAll")}</p></div>
+        <button onClick={onAdd} style={{ background:"linear-gradient(135deg,#FF5722,#FF9800)",color:"#fff",border:"none",borderRadius:11,padding:"10px 20px",fontWeight:800,cursor:"pointer",fontSize:13,fontFamily:"inherit" }}>+ {T("addPurchase")}</button>
       </div>
       <LoyaltyBar points={points} D={D} />
       <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(170px,1fr))",gap:14,marginBottom:24 }}>
-        {[["🛒","Total Spent",fmt(totalSpent),"#2874F0"],["💰","Total Earned",fmt(totalEarned),"#48BB78"],["⏳","Pending",fmt(totalPending),"#F6AD55"],["🏅","DK Points",points,"#6C63FF"]].map(([icon,label,value,color]) => (
+        {[["🛒",T("totalSpent"),fmt(totalSpent),"#2874F0"],["💰",T("totalEarned"),fmt(totalEarned),"#48BB78"],["⏳",T("pending"),fmt(totalPending),"#F6AD55"],["🏅",T("dkPoints"),points,"#6C63FF"]].map(([icon,label,value,color]) => (
           <div key={label} style={{ background:D.card,borderRadius:13,padding:"18px",boxShadow:"0 3px 14px rgba(0,0,0,.07)",border:`1px solid ${D.border}` }}>
             <div style={{ fontSize:26,marginBottom:7 }}>{icon}</div>
             <div style={{ fontSize:20,fontWeight:900,color,marginBottom:3 }}>{value}</div>
@@ -758,7 +874,7 @@ function TrackerPage({ D, purchases, setPurchases, totalSpent, totalEarned, tota
           </div>
         ))}
       </div>
-      {purchases.length === 0 ? <div style={{ textAlign:"center",padding:"50px 0",color:D.sub }}><div style={{ fontSize:48,marginBottom:10 }}>📦</div><p style={{ fontWeight:700 }}>No purchases yet</p><p style={{ fontSize:13,marginTop:6 }}>Start shopping through our links to track cashback here!</p></div> : (
+      {purchases.length === 0 ? <div style={{ textAlign:"center",padding:"50px 0",color:D.sub }}><div style={{ fontSize:48,marginBottom:10 }}>📦</div><p style={{ fontWeight:700 }}>{T("noPurchases")}</p><p style={{ fontSize:13,marginTop:6 }}>{T("startShopping")}</p></div> : (
         <div style={{ background:D.card,borderRadius:14,overflow:"hidden",boxShadow:"0 3px 14px rgba(0,0,0,.07)",border:`1px solid ${D.border}`,overflowX:"auto" }}>
           <table>
             <thead><tr style={{ background:D.bg }}>{["Date","Store","Product","Paid","Cashback","Status",""].map(h => <th key={h} style={{ color:D.sub,fontWeight:700,fontSize:11,letterSpacing:.4,borderBottom:`1px solid ${D.border}` }}>{h}</th>)}</tr></thead>
@@ -780,7 +896,7 @@ function TrackerPage({ D, purchases, setPurchases, totalSpent, totalEarned, tota
       )}
       {pointsHistory.length > 0 && (
         <div style={{ marginTop:24 }}>
-          <h3 style={{ fontSize:15,fontWeight:800,marginBottom:14 }}>🏅 Points History</h3>
+          <h3 style={{ fontSize:15,fontWeight:800,marginBottom:14 }}>{T("pointsHistory")}</h3>
           <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
             {pointsHistory.slice(0,8).map(h => (
               <div key={h.id} style={{ background:D.card,borderRadius:10,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",border:`1px solid ${D.border}` }}>
@@ -795,19 +911,20 @@ function TrackerPage({ D, purchases, setPurchases, totalSpent, totalEarned, tota
   );
 }
 
-function HowItWorksPage({ D }) {
+/* ══════  HOW IT WORKS PAGE  ══════ */
+function HowItWorksPage({ D, T }) {
   const steps = [
-    { icon:"🔍", title:"Find a Deal", desc:"Browse our curated deals from 50+ top brands like Amazon, Flipkart, Myntra, Nykaa and more." },
-    { icon:"🖱️", title:"Click Our Link", desc:"Click 'Shop Now' on any deal. You'll be redirected through our secure affiliate link." },
+    { icon:"🔍", title: T("step1T"), desc: T("step1D") },
+    { icon:"🖱️", title: T("step2T"), desc: T("step2D") },
     { icon:"🛒", title:"Shop as Usual", desc:"Add items to cart and complete your purchase on the store's website — just like you normally would." },
     { icon:"📊", title:"Cashback is Tracked", desc:"The store records that you came through SaveKaro. This can take 24–72 hours to appear." },
     { icon:"✅", title:"Cashback Confirmed", desc:"Once your return/refund window closes (7–30 days), cashback changes from Pending to Confirmed." },
-    { icon:"💰", title:"Cashback Paid", desc:"Confirmed cashback is paid to your UPI ID or bank when your balance reaches ₹100." },
+    { icon:"💰", title: T("step3T"), desc: T("step3D") },
   ];
   return (
     <div style={{ padding:"28px 6% 48px",maxWidth:780,margin:"0 auto" }}>
-      <h1 style={{ fontSize:26,fontWeight:900,marginBottom:6,textAlign:"center" }}>❓ How SaveKaro Cashback Works</h1>
-      <p style={{ color:D.sub,fontSize:14,textAlign:"center",marginBottom:36,lineHeight:1.7 }}>Everything you need to know about earning and receiving your cashback</p>
+      <h1 style={{ fontSize:26,fontWeight:900,marginBottom:6,textAlign:"center" }}>❓ {T("howItWorks")}</h1>
+      <p style={{ color:D.sub,fontSize:14,textAlign:"center",marginBottom:36,lineHeight:1.7 }}>{T("howItWorksSubtitle")}</p>
       <div style={{ display:"flex",flexDirection:"column",gap:16 }}>
         {steps.map((s,i) => (
           <div key={i} style={{ background:D.card,borderRadius:14,padding:"20px 22px",display:"flex",gap:16,alignItems:"flex-start",border:`1px solid ${D.border}`,boxShadow:"0 3px 12px rgba(0,0,0,.07)" }}>
@@ -824,6 +941,7 @@ function HowItWorksPage({ D }) {
   );
 }
 
+/* ══════  LEGAL PAGE  ══════ */
 function LegalPage({ D }) {
   const [tab, setTab] = useState("privacy");
   const content = {
@@ -853,14 +971,17 @@ function LegalPage({ D }) {
 }
 
 /* ══════  PRODUCT CARD  ══════ */
-function PC({ p, D, dark, onShop, wishlist, onWishlist, onCompare, onReview, featured, onPriceDrop, onEMI, onShareCard, onPriceHistory }) {
+function PC({ p, D, dark, T, onShop, wishlist, onWishlist, onCompare, onReview, featured, onPriceDrop, onEMI, onShareCard, onPriceHistory }) {
   const d = disc(p.mrp, p.price);
-  const isWished = wishlist.some(w => w.id === p.id);
+  const isWished = wishlist ? wishlist.some(w => w.id === p.id) : false;
   const isTrending = p.clicks >= TRENDING_THRESHOLD;
   const cashbackAmt = Math.round(p.price * p.cashbackPct / 100);
   const hasRibbon = !p.inStock || p.flashSale || isTrending;
   const ribbonBg = !p.inStock?"linear-gradient(90deg,#718096,#4a5568)":p.flashSale?"linear-gradient(90deg,#FF5722,#FF9800)":"linear-gradient(90deg,#805AD5,#6B46C1)";
   const ribbonText = !p.inStock?"📦 Out of Stock":p.flashSale?"⚡ FLASH SALE — Extra 5% OFF":`📈 TRENDING — ${(p.clicks/1000).toFixed(1)}K views`;
+
+  // Fallback T if not passed (e.g. from WishlistPage without T prop)
+  const tFn = T || ((k) => k);
 
   return (
     <div className="ch" style={{ background:D.card,borderRadius:15,overflow:"hidden",boxShadow:`0 3px 13px rgba(0,0,0,${dark?.14:.07})`,border:`2px solid ${featured?"#FF572244":D.border}`,position:"relative",opacity:p.inStock?1:.85 }}>
@@ -895,13 +1016,14 @@ function PC({ p, D, dark, onShop, wishlist, onWishlist, onCompare, onReview, fea
           <ShareButtons product={p} D={D} />
         </div>
         <button onClick={() => p.inStock&&onShop(p.slug,p.store,p)} disabled={!p.inStock} style={{ width:"100%",padding:"10px",borderRadius:9,border:"none",background:p.inStock?"linear-gradient(135deg,#FF5722,#FF9800)":"#a0aec0",color:"#fff",fontWeight:700,fontSize:12,cursor:p.inStock?"pointer":"not-allowed",fontFamily:"inherit" }}>
-          {p.inStock?"Shop Now & Earn →":"📦 Out of Stock"}
+          {p.inStock ? tFn("shopNow") : tFn("outOfStock")}
         </button>
       </div>
     </div>
   );
 }
 
+/* ══════  SECTION HEADER  ══════ */
 function SH({ D, title, sub, cta, onCta }) {
   return (
     <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-end",flexWrap:"wrap",gap:10 }}>
