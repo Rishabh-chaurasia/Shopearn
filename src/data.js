@@ -143,15 +143,17 @@ export const STORES = [
   { name:"Meesho",     icon:"🏷️", color:"#9B51E0", cashback:"Up to 9%",  slug:"go-meesho"   },
 ];
 
+// NOTE: These coupon codes are for user to apply at checkout on the store
+// They are discount codes — NOT real money. Update codes as per your affiliate deals.
 export const SPIN_PRIZES = [
-  { label:"₹50 Off",   code:"SPIN50",    color:"#FF5722", prob:0.20 },
-  { label:"5% Extra",  code:"SPIN5PCT",  color:"#2874F0", prob:0.20 },
-  { label:"Free Ship", code:"FREESHIP",  color:"#48BB78", prob:0.15 },
-  { label:"Try Again", code:null,        color:"#a0aec0", prob:0.20 },
-  { label:"₹100 Off",  code:"SPIN100",   color:"#F6AD55", prob:0.10 },
-  { label:"10% Extra", code:"SPIN10PCT", color:"#FC2779", prob:0.10 },
-  { label:"₹200 Off",  code:"SPIN200",   color:"#805AD5", prob:0.03 },
-  { label:"Jackpot!",  code:"JACKPOT",   color:"#FF9900", prob:0.02 },
+  { label:"5% Extra",   code:"SAVE5",      color:"#FF5722", prob:0.22, desc:"5% extra discount at checkout" },
+  { label:"10% Off",    code:"SPIN10",     color:"#2874F0", prob:0.18, desc:"10% off your next order" },
+  { label:"Free Ship",  code:"FREESHIP",   color:"#48BB78", prob:0.15, desc:"Free shipping on your order" },
+  { label:"Try Again",  code:null,         color:"#a0aec0", prob:0.20, desc:"Better luck next time!" },
+  { label:"15% Off",    code:"LUCKY15",    color:"#F6AD55", prob:0.10, desc:"15% discount — great deal!" },
+  { label:"8% Extra",   code:"EXTRA8",     color:"#FC2779", prob:0.08, desc:"8% extra cashback on next click" },
+  { label:"20% Off",    code:"MEGA20",     color:"#805AD5", prob:0.05, desc:"20% off — rare win!" },
+  { label:"25% Off 🎉", code:"JACKPOT25",  color:"#FF9900", prob:0.02, desc:"Jackpot! 25% off your purchase" },
 ];
 
 export const SORT_OPTIONS = [

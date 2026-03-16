@@ -77,11 +77,13 @@ export function SpinWheel({ D, onClose, onWin }) {
           <div style={{ marginTop:20 }}>
             {result.code ? (
               <>
-                <div style={{ fontSize:16,fontWeight:700,color:D.sub,marginBottom:6 }}>🎉 You won!</div>
-                <div style={{ background:`${result.color}22`,border:`2px dashed ${result.color}`,borderRadius:12,padding:"12px 20px",fontSize:22,fontWeight:900,color:result.color,letterSpacing:2,marginBottom:14 }}>{result.code}</div>
+                <div style={{ fontSize:16,fontWeight:700,color:D.sub,marginBottom:4 }}>🎉 You won!</div>
+                <div style={{ fontSize:13,color:D.sub,marginBottom:10 }}>{result.desc || "Apply this code at checkout"}</div>
+                <div style={{ background:`${result.color}22`,border:`2px dashed ${result.color}`,borderRadius:12,padding:"12px 20px",fontSize:22,fontWeight:900,color:result.color,letterSpacing:2,marginBottom:8 }}>{result.code}</div>
+                <div style={{ fontSize:11,color:D.sub,marginBottom:12 }}>📌 Copy and paste this code at checkout on the store's website</div>
                 <button onClick={() => { navigator.clipboard.writeText(result.code); onClose(); }}
                   style={{ background:`linear-gradient(135deg,${result.color},${result.color}cc)`,color:"#fff",border:"none",borderRadius:12,padding:"11px 28px",fontWeight:800,cursor:"pointer",fontSize:14,fontFamily:"inherit" }}>
-                  📋 Copy Code & Shop
+                  📋 Copy Code & Shop Now
                 </button>
               </>
             ) : (
@@ -222,91 +224,210 @@ export function LoyaltyBar({ points, D }) {
 
 /* ══════════════════════════════════
    LOGIN MODAL
+   ✅ Google Sign-In (popup)
+   ✅ Email + Password (register & login)
+   No phone auth needed
 ══════════════════════════════════ */
 export function LoginModal({ D, onClose, onLogin }) {
-  const [mode, setMode] = useState("options");
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [mode, setMode]         = useState("options"); // options | email-login | email-register
+  const [email, setEmail]       = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName]         = useState("");
+  const [showPass, setShowPass] = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState("");
 
-  const mockGoogleLogin = () => {
-    setLoading(true);
-    setTimeout(() => {
-      onLogin({ name:"Rahul Sharma", email:"rahul@gmail.com", phone:"", avatar:"RS", provider:"google", points:120 });
-      setLoading(false); onClose();
-    }, 1500);
+  const buildUser = (u, displayName) => {
+    const n = displayName || u.displayName || u.email?.split("@")[0] || "User";
+    const parts = n.split(" ");
+    const avatar = parts.map(p => p[0]).join("").slice(0,2).toUpperCase();
+    return { name:n, email:u.email||"", avatar, uid:u.uid, provider:u.providerData?.[0]?.providerId||"email", photoURL:u.photoURL||null };
   };
 
-  const sendOtp = () => {
-    if (phone.length < 10) return;
-    setLoading(true);
-    setTimeout(() => { setLoading(false); setMode("otp"); }, 1200);
+  // ── GOOGLE ─────────────────────────────────────────────────────────────
+  const handleGoogle = async () => {
+    setError(""); setLoading(true);
+    try {
+      const { getAuth, signInWithPopup, GoogleAuthProvider } = await import("firebase/auth");
+      const { app } = await import("./firebase.js");
+      const result = await signInWithPopup(getAuth(app), Object.assign(new GoogleAuthProvider(), { setCustomParameters: (p) => p } ) );
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt:"select_account" });
+      const res = await signInWithPopup(getAuth(app), provider);
+      onLogin(buildUser(res.user)); onClose();
+    } catch (err) {
+      if (err.code === "auth/popup-closed-by-user") setError("Sign-in cancelled.");
+      else if (err.code === "auth/popup-blocked") setError("Popup blocked — please allow popups for this site.");
+      else { setError("Google sign-in failed. Try again."); console.error(err); }
+    }
+    setLoading(false);
   };
 
-  const verifyOtp = () => {
-    if (otp.length < 4) return;
-    setLoading(true);
-    setTimeout(() => {
-      onLogin({ name:"User "+phone.slice(-4), email:"", phone, avatar:phone.slice(-2), provider:"phone", points:50 });
-      setLoading(false); onClose();
-    }, 1000);
+  // ── EMAIL REGISTER ──────────────────────────────────────────────────────
+  const handleRegister = async () => {
+    if (!name.trim()) { setError("Please enter your name."); return; }
+    if (!email.includes("@")) { setError("Please enter a valid email."); return; }
+    if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    setError(""); setLoading(true);
+    try {
+      const { getAuth, createUserWithEmailAndPassword, updateProfile } = await import("firebase/auth");
+      const { app } = await import("./firebase.js");
+      const auth = getAuth(app);
+      const result = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      await updateProfile(result.user, { displayName: name.trim() });
+      onLogin(buildUser(result.user, name.trim())); onClose();
+    } catch (err) {
+      console.error("Registration error:", err.code, err.message);
+      if (err.code === "auth/email-already-in-use")       setError("This email is already registered. Please login instead.");
+      else if (err.code === "auth/invalid-email")          setError("Invalid email address. Please check and try again.");
+      else if (err.code === "auth/weak-password")          setError("Password too weak. Use at least 6 characters.");
+      else if (err.code === "auth/operation-not-allowed")  setError("Email sign-in is not enabled. Please enable it in Firebase Console → Authentication → Sign-in method → Email/Password.");
+      else if (err.code === "auth/network-request-failed") setError("Network error. Please check your internet connection.");
+      else if (err.code === "auth/too-many-requests")      setError("Too many attempts. Please try again later.");
+      else setError(`Error: ${err.code || err.message || "Registration failed. Please try again."}`);
+    }
+    setLoading(false);
   };
+
+  // ── EMAIL LOGIN ─────────────────────────────────────────────────────────
+  const handleEmailLogin = async () => {
+    if (!email.includes("@")) { setError("Please enter a valid email."); return; }
+    if (!password) { setError("Please enter your password."); return; }
+    setError(""); setLoading(true);
+    try {
+      const { getAuth, signInWithEmailAndPassword } = await import("firebase/auth");
+      const { app } = await import("./firebase.js");
+      const result = await signInWithEmailAndPassword(getAuth(app), email.trim(), password);
+      onLogin(buildUser(result.user)); onClose();
+    } catch (err) {
+      if (err.code === "auth/user-not-found") setError("No account found with this email. Please register first.");
+      else if (err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") setError("Wrong password. Please try again.");
+      else if (err.code === "auth/invalid-email") setError("Invalid email address.");
+      else if (err.code === "auth/too-many-requests") setError("Too many failed attempts. Please try again later.");
+      else { setError("Login failed. Please try again."); console.error(err); }
+    }
+    setLoading(false);
+  };
+
+  // ── FORGOT PASSWORD ─────────────────────────────────────────────────────
+  const handleForgotPassword = async () => {
+    if (!email.includes("@")) { setError("Enter your email above first, then click Forgot Password."); return; }
+    setError(""); setLoading(true);
+    try {
+      const { getAuth, sendPasswordResetEmail } = await import("firebase/auth");
+      const { app } = await import("./firebase.js");
+      await sendPasswordResetEmail(getAuth(app), email.trim());
+      setError(""); alert(`Password reset email sent to ${email}! Check your inbox.`);
+    } catch (err) {
+      setError("Could not send reset email. Please check the email address.");
+    }
+    setLoading(false);
+  };
+
+  const inp = { width:"100%", padding:"12px 14px", borderRadius:11, border:`1.5px solid ${error?'#FC818188':D.border}`, fontSize:14, outline:"none", background:D.input, color:D.text, fontFamily:"inherit", marginBottom:12, boxSizing:"border-box" };
+  const btn = (bg) => ({ width:"100%", padding:"13px", borderRadius:12, border:"none", background:bg, color:"#fff", fontWeight:800, cursor:loading?"not-allowed":"pointer", fontSize:14, fontFamily:"inherit", opacity:loading?.7:1, transition:"opacity .2s" });
 
   return (
-    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center" }}
-      onClick={e => e.target===e.currentTarget && onClose()}>
-      <div style={{ background:D.card,borderRadius:22,padding:"36px 30px",maxWidth:380,width:"92%",textAlign:"center",position:"relative",color:D.text }}>
-        <button onClick={onClose} style={{ position:"absolute",top:14,right:16,background:"none",border:"none",fontSize:22,cursor:"pointer",color:D.sub }}>✕</button>
-        <div style={{ fontSize:44,marginBottom:10 }}>👤</div>
-        <h2 style={{ fontWeight:900,fontSize:20,marginBottom:4 }}>Join SaveKaro</h2>
-        <p style={{ color:D.sub,fontSize:13,marginBottom:24,lineHeight:1.6 }}>Sign in to save wishlist, track cashback & earn loyalty points</p>
+    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.65)",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)" }}
+      onClick={e => e.target===e.currentTarget && !loading && onClose()}>
+      <div style={{ background:D.card,borderRadius:24,padding:"32px 28px",maxWidth:400,width:"92%",textAlign:"center",position:"relative",color:D.text,boxShadow:"0 24px 80px rgba(0,0,0,.35)",maxHeight:"95vh",overflowY:"auto" }}>
 
-        {mode === "options" && (
-          <>
-            <button onClick={mockGoogleLogin} disabled={loading}
-              style={{ width:"100%",padding:"13px",borderRadius:12,border:`1.5px solid ${D.border}`,background:D.input,color:D.text,fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginBottom:12 }}>
-              <span style={{ fontSize:20 }}>🔵</span> {loading ? "Signing in…" : "Continue with Google"}
-            </button>
-            <button onClick={() => setMode("phone")}
-              style={{ width:"100%",padding:"13px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#FF5722,#FF9800)",color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:10 }}>
-              <span style={{ fontSize:20 }}>📱</span> Continue with Phone OTP
-            </button>
-            <p style={{ fontSize:11,color:D.sub,marginTop:16,lineHeight:1.6 }}>By continuing, you agree to our Terms of Use and Privacy Policy</p>
-          </>
+        <button onClick={onClose} disabled={loading} style={{ position:"absolute",top:14,right:16,background:"none",border:"none",fontSize:22,cursor:"pointer",color:D.sub }}>✕</button>
+
+        {/* Logo */}
+        <div style={{ width:56,height:56,background:"linear-gradient(135deg,#FF5722,#FF9800)",borderRadius:16,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 12px",boxShadow:"0 8px 24px rgba(255,87,34,.3)" }}>💸</div>
+        <h2 style={{ fontWeight:900,fontSize:20,marginBottom:4 }}>
+          {mode==="options"?"Join SaveKaro":mode==="email-login"?"Welcome Back":"Create Account"}
+        </h2>
+        <p style={{ color:D.sub,fontSize:13,marginBottom:20,lineHeight:1.6 }}>
+          {mode==="options"?"Sign in to track cashback, earn points & save wishlists":
+           mode==="email-login"?"Login with your SaveKaro account":"Register free — takes 30 seconds!"}
+        </p>
+
+        {/* ── OPTIONS SCREEN ── */}
+        {mode === "options" && (<>
+          {/* Google button */}
+          <button onClick={handleGoogle} disabled={loading}
+            style={{ ...btn("white"), color:D.text, border:`1.5px solid ${D.border}`, display:"flex", alignItems:"center", justifyContent:"center", gap:12, marginBottom:12, background:D.input }}
+            onMouseEnter={e=>e.currentTarget.style.borderColor="#4285F4"}
+            onMouseLeave={e=>e.currentTarget.style.borderColor=D.border}>
+            {loading
+              ? <span style={{ display:"flex",gap:4 }}>{[0,1,2].map(i=><span key={i} style={{ width:6,height:6,borderRadius:"50%",background:"#4285F4",display:"inline-block",animation:`ldot 1s ${i*.2}s infinite` }}/>)}</span>
+              : <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>}
+            {loading ? "Signing in…" : "Continue with Google"}
+          </button>
+
+          <div style={{ display:"flex",alignItems:"center",gap:10,margin:"6px 0" }}>
+            <div style={{ flex:1,height:1,background:D.border }}/><span style={{ fontSize:11,color:D.sub,fontWeight:600 }}>OR</span><div style={{ flex:1,height:1,background:D.border }}/>
+          </div>
+
+          {/* Email options */}
+          <button onClick={() => { setMode("email-register"); setError(""); }}
+            style={{ ...btn("linear-gradient(135deg,#FF5722,#FF9800)"), marginTop:10, marginBottom:8 }}>
+            📧 Register with Email
+          </button>
+          <button onClick={() => { setMode("email-login"); setError(""); }}
+            style={{ ...btn("transparent"), color:"#FF5722", border:`1.5px solid #FF5722`, marginBottom:0 }}>
+            🔑 Login with Email
+          </button>
+
+          <div style={{ marginTop:16,background:D.input,borderRadius:10,padding:"10px 14px",fontSize:12,color:D.sub,lineHeight:1.6,textAlign:"left" }}>
+            🆕 <strong style={{ color:D.text }}>New here?</strong> Click "Register with Email" to create a free account in 30 seconds — no phone number needed!
+          </div>
+        </>)}
+
+        {/* ── EMAIL REGISTER ── */}
+        {mode === "email-register" && (<>
+          <input value={name} onChange={e=>{setName(e.target.value);setError("");}} placeholder="Your Full Name" autoFocus style={inp} />
+          <input value={email} onChange={e=>{setEmail(e.target.value);setError("");}} placeholder="Email Address" type="email" style={inp} />
+          <div style={{ position:"relative",marginBottom:12 }}>
+            <input value={password} onChange={e=>{setPassword(e.target.value);setError("");}} placeholder="Create Password (min 6 chars)" type={showPass?"text":"password"} style={{ ...inp, marginBottom:0, paddingRight:44 }} />
+            <button onClick={()=>setShowPass(s=>!s)} style={{ position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:D.sub,fontSize:16 }}>{showPass?"🙈":"👁️"}</button>
+          </div>
+          <button onClick={handleRegister} disabled={loading} style={{ ...btn("linear-gradient(135deg,#FF5722,#FF9800)"), marginBottom:10 }}>
+            {loading ? "Creating account…" : "🎉 Create Free Account"}
+          </button>
+          <button onClick={()=>{setMode("email-login");setError("");}} style={{ background:"none",border:"none",color:"#FF5722",cursor:"pointer",fontSize:13,fontFamily:"inherit",fontWeight:700 }}>
+            Already have an account? Login →
+          </button>
+          <button onClick={()=>{setMode("options");setError("");}} style={{ display:"block",background:"none",border:"none",color:D.sub,cursor:"pointer",marginTop:8,fontSize:12,fontFamily:"inherit" }}>← Back</button>
+        </>)}
+
+        {/* ── EMAIL LOGIN ── */}
+        {mode === "email-login" && (<>
+          <input value={email} onChange={e=>{setEmail(e.target.value);setError("");}} placeholder="Email Address" type="email" autoFocus style={inp} />
+          <div style={{ position:"relative",marginBottom:12 }}>
+            <input value={password} onChange={e=>{setPassword(e.target.value);setError("");}} placeholder="Password" type={showPass?"text":"password"} style={{ ...inp, marginBottom:0, paddingRight:44 }}
+              onKeyDown={e=>e.key==="Enter"&&handleEmailLogin()} />
+            <button onClick={()=>setShowPass(s=>!s)} style={{ position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:D.sub,fontSize:16 }}>{showPass?"🙈":"👁️"}</button>
+          </div>
+          <div style={{ textAlign:"right",marginBottom:14,marginTop:-6 }}>
+            <button onClick={handleForgotPassword} style={{ background:"none",border:"none",color:"#FF5722",cursor:"pointer",fontSize:12,fontFamily:"inherit",fontWeight:600 }}>Forgot Password?</button>
+          </div>
+          <button onClick={handleEmailLogin} disabled={loading} style={{ ...btn("linear-gradient(135deg,#FF5722,#FF9800)"), marginBottom:10 }}>
+            {loading ? "Logging in…" : "🔑 Login"}
+          </button>
+          <button onClick={()=>{setMode("email-register");setError("");}} style={{ background:"none",border:"none",color:"#FF5722",cursor:"pointer",fontSize:13,fontFamily:"inherit",fontWeight:700 }}>
+            New user? Register free →
+          </button>
+          <button onClick={()=>{setMode("options");setError("");}} style={{ display:"block",background:"none",border:"none",color:D.sub,cursor:"pointer",marginTop:8,fontSize:12,fontFamily:"inherit" }}>← Back</button>
+        </>)}
+
+        {/* Error */}
+        {error && (
+          <div style={{ marginTop:14,background:"#FFF5F5",border:"1px solid #FC818166",borderRadius:10,padding:"10px 14px",fontSize:13,color:"#E53E3E",fontWeight:600,textAlign:"left",display:"flex",gap:8 }}>
+            ⚠️ {error}
+          </div>
         )}
 
-        {mode === "phone" && (
-          <>
-            <div style={{ display:"flex",gap:8,marginBottom:14 }}>
-              <div style={{ background:D.input,border:`1.5px solid ${D.border}`,borderRadius:10,padding:"12px 14px",fontWeight:700,fontSize:14,color:D.sub }}>🇮🇳 +91</div>
-              <input value={phone} onChange={e => setPhone(e.target.value.replace(/\D/,"").slice(0,10))} placeholder="10-digit mobile number" maxLength={10}
-                style={{ flex:1,padding:"12px 14px",borderRadius:10,border:`1.5px solid ${D.border}`,fontSize:14,outline:"none",background:D.input,color:D.text,fontFamily:"inherit" }} />
-            </div>
-            <button onClick={sendOtp} disabled={phone.length<10||loading}
-              style={{ width:"100%",padding:"12px",borderRadius:12,border:"none",background:phone.length===10?"linear-gradient(135deg,#FF5722,#FF9800)":"#a0aec0",color:"#fff",fontWeight:800,cursor:phone.length===10?"pointer":"not-allowed",fontSize:14,fontFamily:"inherit" }}>
-              {loading ? "Sending OTP…" : "Send OTP"}
-            </button>
-            <button onClick={() => setMode("options")} style={{ background:"none",border:"none",color:D.sub,cursor:"pointer",marginTop:12,fontSize:13 }}>← Back</button>
-          </>
-        )}
-
-        {mode === "otp" && (
-          <>
-            <p style={{ color:D.sub,fontSize:13,marginBottom:16 }}>OTP sent to +91 {phone}</p>
-            <input value={otp} onChange={e => setOtp(e.target.value.replace(/\D/,"").slice(0,6))} placeholder="Enter 6-digit OTP" maxLength={6}
-              style={{ width:"100%",padding:"14px",borderRadius:12,border:`1.5px solid ${D.border}`,fontSize:20,textAlign:"center",letterSpacing:8,outline:"none",background:D.input,color:D.text,fontFamily:"inherit",marginBottom:14 }} />
-            <button onClick={verifyOtp} disabled={otp.length<4||loading}
-              style={{ width:"100%",padding:"12px",borderRadius:12,border:"none",background:otp.length>=4?"linear-gradient(135deg,#FF5722,#FF9800)":"#a0aec0",color:"#fff",fontWeight:800,cursor:otp.length>=4?"pointer":"not-allowed",fontSize:14,fontFamily:"inherit" }}>
-              {loading ? "Verifying…" : "Verify & Login"}
-            </button>
-            <button onClick={() => setMode("phone")} style={{ background:"none",border:"none",color:D.sub,cursor:"pointer",marginTop:12,fontSize:13 }}>← Back</button>
-          </>
-        )}
+        <p style={{ fontSize:11,color:D.sub,marginTop:16,lineHeight:1.7 }}>
+          By continuing you agree to our <span style={{ color:"#FF5722",cursor:"pointer",fontWeight:600 }}>Terms</span> & <span style={{ color:"#FF5722",cursor:"pointer",fontWeight:600 }}>Privacy Policy</span>
+        </p>
+        <style>{`@keyframes ldot{0%,100%{opacity:.25;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}`}</style>
       </div>
     </div>
   );
 }
-
 /* ══════════════════════════════════
    AI DEAL FINDER CHATBOT
    ✅ Uses Claude API via Anthropic (artifact-safe proxy)

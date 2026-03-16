@@ -1,12 +1,9 @@
 import emailjs from "@emailjs/browser";import { useState, useEffect, useRef } from "react";
 import { REDIRECT_MAP, SITE, PRODUCTS, COUPONS, STORES, BANNERS, CATEGORIES, SORT_OPTIONS } from "./data.js";
-import { usePersist, useCountdown, useToast, usePoints, useAuth } from "./hooks.js";
+import { usePersist, useCountdown, useToast, usePoints, useAuth, usePurchases, useClickTracker, useMissingCashback, useWishlist } from "./hooks.js";
 import { SpinWheel, ShareButtons, ExpiryTimer, LoyaltyBar, LoginModal, AIChatbot, ProfileDropdown } from "./components.jsx";
 import { ExitIntentPopup, PWAInstallBanner, PushNotificationBanner, AntiAdblockBanner, FeaturedDealOfDay, LiveChatButton, BlogPage } from "./growth.jsx";
-import { AdminDashboard } from "./admin.jsx";
-import { PriceDropAlert, EMICalculator, GiftingAssistant, DealShareCard, CityDealsPanel, RetargetingBanner } from "./revenue.jsx";
-import { SubAffiliatePage } from "./SubAffiliate.jsx";
-import { PriceHistoryChart, SkeletonGrid, ErrorBoundary, NotFoundPage, CookieConsent, DealSubmissionForm, WhatsAppBroadcast, PageTransition } from "./polish.jsx";
+import { SkeletonGrid, ErrorBoundary, NotFoundPage, CookieConsent } from "./polish.jsx";
 
 const fmt = n => "₹" + Number(n).toLocaleString("en-IN");
 const disc = (mrp, price) => Math.round(((mrp - price) / mrp) * 100);
@@ -130,12 +127,8 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("default");
   const [budgetMax, setBudgetMax] = usePersist("dk_budget", 80000);
-  const [wishlist, setWishlist] = usePersist("dk_wishlist", []);
-  const [purchases, setPurchases] = usePersist("dk_purchases", [
-    { id:1, platform:"Amazon",  product:"boAt Airdopes 141", amount:1199, cashback:96,  date:"2026-03-10", status:"confirmed" },
-    { id:2, platform:"Myntra",  product:"Levis 511 Jeans",   amount:1999, cashback:240, date:"2026-03-08", status:"paid"      },
-    { id:3, platform:"Nykaa",   product:"Minimalist Serum",  amount:559,  cashback:39,  date:"2026-03-12", status:"pending"   },
-  ]);
+  // Wishlist from Firebase (syncs across devices) or localStorage (guests)
+  // Purchases now loaded from Firestore — wired after user is known
   const [recentlyViewed, setRecentlyViewed] = usePersist("dk_recent", []);
   const [nlDone, setNlDone] = usePersist("dk_nl", false);
   const [spinShown, setSpinShown] = usePersist("dk_spin_shown", false);
@@ -152,22 +145,8 @@ export default function App() {
   const [showLogin, setShowLogin] = useState(false);
   const [showChatbot, setShowChatbot] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [showExitIntent, setShowExitIntent] = useState(false);
   const [showPWABanner, setShowPWABanner] = usePersist("dk_pwa_dismissed", true);
   const [showPushBanner, setShowPushBanner] = useState(false);
-  const [showAdblock, setShowAdblock] = useState(false);
-  const [showAdmin, setShowAdmin] = useState(false);
-  const [exitIntentShown, setExitIntentShown] = usePersist("dk_exit_shown", false);
-  const [showPriceDrop, setShowPriceDrop] = useState(null);
-  const [showEMI, setShowEMI] = useState(null);
-  const [showGifting, setShowGifting] = useState(false);
-  const [showShareCard, setShowShareCard] = useState(null);
-  const [showCityDeals, setShowCityDeals] = useState(false);
-  const [showRetargeting, setShowRetargeting] = useState(false);
-  const [retargetingDismissed, setRetargetingDismissed] = usePersist("dk_ret_dismissed", false);
-  const [showPriceHistory, setShowPriceHistory] = useState(null);
-  const [showDealSubmit, setShowDealSubmit] = useState(false);
-  const [showWhatsAppBroadcast, setShowWhatsAppBroadcast] = useState(false);
   const [cookieConsent, setCookieConsent] = usePersist("dk_cookie", null);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddPurchase, setShowAddPurchase] = useState(false);
@@ -178,6 +157,15 @@ export default function App() {
   const { user, login, logout } = useAuth();
   const { points, history: pointsHistory, award } = usePoints();
   const flashTime = useCountdown(FLASH_END);
+
+  // Wishlist — syncs to Firestore when logged in
+  const { wishlist, toggleWishlist: toggleWishlistFn, wishlistReady } = useWishlist(user?.uid);
+
+  // Firestore hooks — wired to current user
+  const { purchases, loadingPurchases, addPurchase: addPurchaseToFirestore, deletePurchase } = usePurchases(user?.uid);
+  const { trackClick } = useClickTracker(user?.uid);
+  const { requests: missingRequests, submitRequest: submitMissingCashback } = useMissingCashback(user?.uid);
+  const [showMissingCashback, setShowMissingCashback] = useState(false);
 
   // ── REACTIVE T() — re-creates whenever lang changes ──────────────────────
   const T = getT(lang);
@@ -196,20 +184,6 @@ export default function App() {
     return () => clearTimeout(t);
   }, [spinShown]);
 
-  // Exit intent detector
-  useEffect(() => {
-    if (exitIntentShown) return;
-    const handler = (e) => {
-      if (e.clientY < 20) {
-        setShowExitIntent(true);
-        setExitIntentShown(true);
-        document.removeEventListener("mousemove", handler);
-      }
-    };
-    const t = setTimeout(() => document.addEventListener("mousemove", handler), 15000);
-    return () => { clearTimeout(t); document.removeEventListener("mousemove", handler); };
-  }, [exitIntentShown]);
-
   // Show push notification banner after 30s
   useEffect(() => {
     const t = setTimeout(() => setShowPushBanner(true), 30000);
@@ -219,28 +193,6 @@ export default function App() {
   // Simulate initial load
   useEffect(() => {
     const t = setTimeout(() => setIsLoading(false), 800);
-    return () => clearTimeout(t);
-  }, []);
-
-  // Show retargeting banner for returning users who have recently viewed items
-  useEffect(() => {
-    if (retargetingDismissed) return;
-    const t = setTimeout(() => {
-      if (recentlyViewed?.length > 0) setShowRetargeting(true);
-    }, 5000);
-    return () => clearTimeout(t);
-  }, [recentlyViewed, retargetingDismissed]);
-
-  // Adblock detection
-  useEffect(() => {
-    const t = setTimeout(() => {
-      const testAd = document.createElement("div");
-      testAd.className = "adsbox";
-      testAd.style.cssText = "position:absolute;top:-9999px;width:1px;height:1px";
-      document.body.appendChild(testAd);
-      if (testAd.offsetHeight === 0) setShowAdblock(true);
-      document.body.removeChild(testAd);
-    }, 3000);
     return () => clearTimeout(t);
   }, []);
 
@@ -260,6 +212,8 @@ export default function App() {
   const handleShop = (slug, storeName, product) => {
     if (product) setRecentlyViewed(p => [product, ...p.filter(x => x.id !== product.id)].slice(0, 8));
     award(10, `Clicked deal: ${storeName}`);
+    // Track every affiliate click to Firestore
+    trackClick(product, slug);
     goTo(slug, storeName, showToast);
   };
 
@@ -271,13 +225,11 @@ export default function App() {
     setTimeout(() => setCopied(null), 2500);
   };
 
-  const toggleWishlist = (product) => {
-    setWishlist(prev => {
-      const exists = prev.find(p => p.id === product.id);
-      showToast(exists ? T("removeFromWishlist") : T("addToWishlist"), exists ? "info" : "success");
-      if (!exists) award(5, `Wishlisted: ${product.title}`);
-      return exists ? prev.filter(p => p.id !== product.id) : [...prev, product];
-    });
+  const toggleWishlist = async (product) => {
+    const exists = wishlist.some(p => p.id === product.id);
+    showToast(exists ? T("removeFromWishlist") : T("addToWishlist"), exists ? "info" : "success");
+    if (!exists) award(5, `Wishlisted: ${product.title}`);
+    await toggleWishlistFn(product);
   };
 
   const handleNlSubmit = () => {
@@ -302,9 +254,14 @@ export default function App() {
     setTimeout(() => setLinkCopied(false), 2500);
   };
 
-  const addPurchase = () => {
+  const addPurchase = async () => {
+    if (!user) { showToast("Please login to track purchases", "info"); setShowLogin(true); return; }
     if (!newPurchase.product || !newPurchase.amount) { showToast("Fill product name and amount", "info"); return; }
-    setPurchases(p => [...p, { ...newPurchase, id:Date.now(), amount:Number(newPurchase.amount), cashback:Number(newPurchase.cashback)||0 }]);
+    await addPurchaseToFirestore({
+      ...newPurchase,
+      amount:   Number(newPurchase.amount),
+      cashback: Number(newPurchase.cashback) || 0,
+    });
     setNewPurchase({ platform:"Amazon", product:"", amount:"", cashback:"", date:new Date().toISOString().split("T")[0], status:"pending" });
     setShowAddPurchase(false);
     award(100, "Added purchase to tracker");
@@ -328,9 +285,9 @@ export default function App() {
   if (sortBy === "rating")    filtered = [...filtered].sort((a,b) => b.rating - a.rating);
   if (sortBy === "expiring")  filtered = [...filtered].sort((a,b) => a.expiresHours - b.expiresHours);
 
-  const totalSpent = purchases.reduce((s,p) => s+p.amount, 0);
-  const totalEarned = purchases.filter(p=>p.status==="paid").reduce((s,p) => s+p.cashback, 0);
-  const totalPending = purchases.filter(p=>p.status!=="paid").reduce((s,p) => s+p.cashback, 0);
+  const totalSpent   = purchases.reduce((s,p) => s + (p.amount||0), 0);
+  const totalEarned  = purchases.filter(p=>p.status==="paid").reduce((s,p) => s + (p.cashback||0), 0);
+  const totalPending = purchases.filter(p=>p.status==="pending"||p.status==="confirmed").reduce((s,p) => s + (p.cashback||0), 0);
   const calcSaving = calcAmount ? Math.round(parseFloat(calcAmount) * calcPct / 100) : 0;
   const OV = { position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:8000,display:"flex",alignItems:"center",justifyContent:"center" };
   const MB = { background:D.card,borderRadius:20,padding:"32px",maxWidth:440,width:"90%",animation:"popIn .3s ease",position:"relative",color:D.text,maxHeight:"90vh",overflowY:"auto" };
@@ -518,39 +475,24 @@ export default function App() {
         style={{ position:"fixed",bottom:168,right:22,zIndex:7000,background:"linear-gradient(135deg,#6C63FF,#4A90E2)",borderRadius:"50%",width:52,height:52,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,boxShadow:"0 6px 20px rgba(108,99,255,.5)" }}>🤖</button>
       <a href={SITE.whatsapp} target="_blank" rel="noreferrer" className="fab"
         style={{ position:"fixed",bottom:104,right:22,zIndex:7000,background:"#25D366",borderRadius:"50%",width:52,height:52,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,boxShadow:"0 6px 20px rgba(37,211,102,.45)",textDecoration:"none" }}>💬</a>
-      <button onClick={() => setShowGifting(true)} className="fab" title="AI Gift Finder"
-        style={{ position:"fixed",bottom:232,left:22,zIndex:7000,background:"linear-gradient(135deg,#E91E8C,#9C27B0)",borderRadius:"50%",width:52,height:52,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,boxShadow:"0 6px 20px rgba(233,30,140,.4)" }}>🎁</button>
-      <button onClick={() => setShowCityDeals(true)} className="fab" title="City Deals"
-        style={{ position:"fixed",bottom:232,right:22,zIndex:7000,background:"linear-gradient(135deg,#00A8E1,#0077B6)",borderRadius:"50%",width:52,height:52,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,boxShadow:"0 6px 20px rgba(0,168,225,.4)" }}>📍</button>
       <button onClick={() => setShowCalc(true)} className="fab"
         style={{ position:"fixed",bottom:168,left:22,zIndex:7000,background:"linear-gradient(135deg,#FF5722,#FF9800)",borderRadius:"50%",width:52,height:52,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,boxShadow:"0 6px 20px rgba(255,87,34,.4)" }}>🏆</button>
       <button onClick={() => setShowSpin(true)} className="fab"
         style={{ position:"fixed",bottom:104,left:22,zIndex:7000,background:"linear-gradient(135deg,#F6AD55,#DD6B20)",borderRadius:"50%",width:52,height:52,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,boxShadow:"0 6px 20px rgba(246,173,85,.45)" }}>🎰</button>
 
       {/* GROWTH COMPONENTS */}
-      {showExitIntent && <ExitIntentPopup D={D} onShop={handleShop} onClose={() => setShowExitIntent(false)} />}
-      {showAdblock && <AntiAdblockBanner D={D} onClose={() => setShowAdblock(false)} />}
       {showPushBanner && <PushNotificationBanner D={D} onDismiss={() => setShowPushBanner(false)} />}
       {!showPWABanner && <PWAInstallBanner D={D} onDismiss={() => setShowPWABanner(true)} />}
-      {showAdmin      && <AdminDashboard D={D} onClose={() => setShowAdmin(false)} />}
-      {showPriceDrop  && <PriceDropAlert product={showPriceDrop} D={D} onClose={() => setShowPriceDrop(null)} />}
-      {showEMI        && <EMICalculator  product={showEMI}       D={D} onClose={() => setShowEMI(null)} />}
-      {showGifting    && <GiftingAssistant D={D} products={PRODUCTS} onShop={handleShop} onClose={() => setShowGifting(false)} />}
-      {showShareCard  && <DealShareCard   product={showShareCard} D={D} onClose={() => setShowShareCard(null)} />}
-      {showCityDeals  && <CityDealsPanel  D={D} onClose={() => setShowCityDeals(false)} />}
-      {showRetargeting && !retargetingDismissed && <RetargetingBanner D={D} recentlyViewed={recentlyViewed} onShop={handleShop} onDismiss={() => { setShowRetargeting(false); setRetargetingDismissed(true); }} />}
       <LiveChatButton />
-      {showPriceHistory && <PriceHistoryChart product={showPriceHistory} D={D} onClose={() => setShowPriceHistory(null)} />}
-      {showDealSubmit && <DealSubmissionForm D={D} onClose={() => setShowDealSubmit(false)} showToast={showToast} />}
-      {showWhatsAppBroadcast && <WhatsAppBroadcast D={D} onClose={() => setShowWhatsAppBroadcast(false)} />}
       {cookieConsent === null && <CookieConsent D={D} onAccept={() => setCookieConsent("all")} onDecline={() => setCookieConsent("essential")} />}
 
-      <button onClick={() => setShowDealSubmit(true)} className="fab" title="Submit a Deal"
-        style={{ position:"fixed",bottom:36,left:22,zIndex:7000,background:"linear-gradient(135deg,#48BB78,#276749)",borderRadius:"50%",width:52,height:52,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,boxShadow:"0 6px 20px rgba(72,187,120,.45)" }}>💡</button>
       <button onClick={() => setShowNewsletter(true)} className="fab"
         style={{ position:"fixed",bottom:36,right:22,zIndex:7000,background:"#1a202c",borderRadius:"50%",width:52,height:52,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,boxShadow:"0 6px 20px rgba(0,0,0,.25)" }}>🔔</button>
 
-      {/* FLASH BAR */}
+      {/* MISSING CASHBACK MODAL */}
+      {showMissingCashback && <MissingCashbackModal D={D} user={user} onClose={() => setShowMissingCashback(false)} submitRequest={submitMissingCashback} showToast={showToast} missingRequests={missingRequests} />}
+
+            {/* FLASH BAR */}
       <div style={{ background:"linear-gradient(90deg,#1a202c,#2d3748)",padding:"8px 5%",display:"flex",alignItems:"center",justifyContent:"center",gap:14,flexWrap:"wrap" }}>
         <span style={{ color:"#FC8181",fontWeight:800,fontSize:12,animation:"blink 1.5s infinite" }}>{T("flashSale")}</span>
         {[flashTime.h,flashTime.m,flashTime.s].map((v,i) => (
@@ -564,7 +506,7 @@ export default function App() {
 
       {/* NAVBAR */}
       <nav style={{ background:D.nav,position:"sticky",top:0,zIndex:500,boxShadow:`0 2px 16px rgba(0,0,0,${dark?.15:.08})`,padding:"0 4%",display:"flex",alignItems:"center",justifyContent:"space-between",height:64,transition:"background .3s",gap:12 }}>
-        <div onClick={() => setPage("home")} onDoubleClick={() => setShowAdmin(true)} onContextMenu={e=>{e.preventDefault();setShowWhatsAppBroadcast(true);}} style={{ display:"flex",alignItems:"center",gap:8,cursor:"pointer",userSelect:"none",flexShrink:0 }} title="Double-click for admin">
+        <div onClick={() => setPage("home")} style={{ display:"flex",alignItems:"center",gap:8,cursor:"pointer",userSelect:"none",flexShrink:0 }}>
           <div style={{ background:"linear-gradient(135deg,#FF5722,#FF9800)",borderRadius:10,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18 }}>💸</div>
           <span style={{ fontSize:20,fontWeight:900,letterSpacing:-.5 }}>Save<span style={{ color:"#FF5722" }}>Karo</span></span>
         </div>
@@ -617,16 +559,16 @@ export default function App() {
       {/* PAGES */}
       {isLoading ? (
         <div style={{ padding:"32px 6%" }}><SkeletonGrid count={8} /></div>
-      ) : page==="home"       ? <HomePage D={D} dark={dark} lang={lang} T={T} bannerIdx={bannerIdx} setBannerIdx={setBannerIdx} onShop={handleShop} onNavigate={setPage} stores={STORES} wishlist={wishlist} onWishlist={toggleWishlist} onCompare={setShowCompare} onReview={setShowReview} budgetMax={budgetMax} setBudgetMax={setBudgetMax} onReferral={handleReferral} linkCopied={linkCopied} onPriceDrop={setShowPriceDrop} onEMI={setShowEMI} onShareCard={setShowShareCard} onPriceHistory={setShowPriceHistory} />
-      : page==="deals"      ? <DealsPage D={D} dark={dark} lang={lang} T={T} products={filtered} categories={CATEGORIES} activeCat={activeCat} setActiveCat={setActiveCat} onShop={handleShop} search={search} setSearch={setSearch} wishlist={wishlist} onWishlist={toggleWishlist} onCompare={setShowCompare} onReview={setShowReview} budgetMax={budgetMax} setBudgetMax={setBudgetMax} sortBy={sortBy} setSortBy={setSortBy} onPriceDrop={setShowPriceDrop} onEMI={setShowEMI} onShareCard={setShowShareCard} onPriceHistory={setShowPriceHistory} />
+      ) : page==="home"       ? <HomePage D={D} dark={dark} lang={lang} T={T} bannerIdx={bannerIdx} setBannerIdx={setBannerIdx} onShop={handleShop} onNavigate={setPage} stores={STORES} wishlist={wishlist} onWishlist={toggleWishlist} onCompare={setShowCompare} onReview={setShowReview} budgetMax={budgetMax} setBudgetMax={setBudgetMax} onReferral={handleReferral} linkCopied={linkCopied} />
+      : page==="deals"      ? <DealsPage D={D} dark={dark} lang={lang} T={T} products={filtered} categories={CATEGORIES} activeCat={activeCat} setActiveCat={setActiveCat} onShop={handleShop} search={search} setSearch={setSearch} wishlist={wishlist} onWishlist={toggleWishlist} onCompare={setShowCompare} onReview={setShowReview} budgetMax={budgetMax} setBudgetMax={setBudgetMax} sortBy={sortBy} setSortBy={setSortBy} />
       : page==="coupons"    ? <CouponsPage D={D} coupons={COUPONS} onCopy={handleCopy} copied={copied} onShop={handleShop} />
       : page==="stores"     ? <StoresPage D={D} stores={STORES} onShop={handleShop} />
-      : page==="wishlist"   ? <WishlistPage D={D} wishlist={wishlist} onShop={handleShop} onWishlist={toggleWishlist} onCompare={setShowCompare} onReview={setShowReview} onNavigate={setPage} onPriceDrop={setShowPriceDrop} onEMI={setShowEMI} onShareCard={setShowShareCard} onPriceHistory={setShowPriceHistory} />
-      : page==="tracker"    ? <TrackerPage D={D} T={T} purchases={purchases} setPurchases={setPurchases} totalSpent={totalSpent} totalEarned={totalEarned} totalPending={totalPending} onAdd={() => setShowAddPurchase(true)} points={points} pointsHistory={pointsHistory} />
+      : page==="wishlist"   ? <WishlistPage D={D} wishlist={wishlist} onShop={handleShop} onWishlist={toggleWishlist} onCompare={setShowCompare} onReview={setShowReview} onNavigate={setPage} />
+      : page==="tracker"    ? <TrackerPage D={D} T={T} purchases={purchases} loadingPurchases={loadingPurchases} deletePurchase={deletePurchase} totalSpent={totalSpent} totalEarned={totalEarned} totalPending={totalPending} onAdd={() => setShowAddPurchase(true)} onRaiseMissing={() => setShowMissingCashback(true)} points={points} pointsHistory={pointsHistory} missingRequests={missingRequests} />
       : page==="howItWorks" ? <HowItWorksPage D={D} T={T} />
       : page==="legal"      ? <LegalPage D={D} />
       : page==="blog"       ? <BlogPage D={D} dark={dark} onNavigate={setPage} />
-      : page==="partners"   ? <SubAffiliatePage D={D} />
+      : page==="partners"   ? <NotFoundPage D={D} onNavigate={setPage} />
       : <NotFoundPage D={D} onNavigate={setPage} />
       }
 
@@ -711,7 +653,7 @@ function WriteReview({ D, product, onSubmit }) {
 }
 
 /* ══════  HOME PAGE  ══════ */
-function HomePage({ D, dark, lang, T, bannerIdx, setBannerIdx, onShop, onNavigate, stores, wishlist, onWishlist, onCompare, onReview, budgetMax, setBudgetMax, onReferral, linkCopied, onPriceDrop, onEMI, onShareCard, onPriceHistory }) {
+function HomePage({ D, dark, lang, T, bannerIdx, setBannerIdx, onShop, onNavigate, stores, wishlist, onWishlist, onCompare, onReview, budgetMax, setBudgetMax, onReferral, linkCopied }) {
   const b = BANNERS[bannerIdx];
   const topDeals = PRODUCTS.filter(p => p.topDeal);
   return (
@@ -749,7 +691,7 @@ function HomePage({ D, dark, lang, T, bannerIdx, setBannerIdx, onShop, onNavigat
       <div style={{ padding:"32px 6%" }}>
         <SH D={D} title={T("topDeals")} sub={lang==="hi"?"हर सोमवार अपडेट होती हैं बेहतरीन डील्स":"Hand-picked best deals — updated every Monday"} cta={T("viewAll")} onCta={() => onNavigate("deals")} />
         <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:16,marginTop:16 }}>
-          {topDeals.map(p => <PC key={p.id} p={p} D={D} dark={dark} T={T} onShop={onShop} wishlist={wishlist} onWishlist={onWishlist} onCompare={onCompare} onReview={onReview} featured onPriceDrop={onPriceDrop} onEMI={onEMI} onShareCard={onShareCard} onPriceHistory={onPriceHistory} />)}
+          {topDeals.map(p => <PC key={p.id} p={p} D={D} dark={dark} T={T} onShop={onShop} wishlist={wishlist} onWishlist={onWishlist} onCompare={onCompare} onReview={onReview} featured />)}
         </div>
       </div>
       <div style={{ margin:"0 6% 32px",background:"linear-gradient(135deg,#6C63FF,#4A90E2)",borderRadius:20,padding:"28px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:16 }}>
@@ -781,7 +723,7 @@ function HomePage({ D, dark, lang, T, bannerIdx, setBannerIdx, onShop, onNavigat
 }
 
 /* ══════  DEALS PAGE  ══════ */
-function DealsPage({ D, dark, lang, T, products, categories, activeCat, setActiveCat, onShop, search, setSearch, wishlist, onWishlist, onCompare, onReview, budgetMax, setBudgetMax, sortBy, setSortBy, onPriceDrop, onEMI, onShareCard, onPriceHistory }) {
+function DealsPage({ D, dark, lang, T, products, categories, activeCat, setActiveCat, onShop, search, setSearch, wishlist, onWishlist, onCompare, onReview, budgetMax, setBudgetMax, sortBy, setSortBy }) {
   return (
     <div style={{ padding:"28px 6%" }}>
       <div style={{ display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:12,marginBottom:16 }}>
@@ -803,7 +745,7 @@ function DealsPage({ D, dark, lang, T, products, categories, activeCat, setActiv
         {categories.map(c => <button key={c.id} onClick={() => setActiveCat(c.id)} style={{ padding:"7px 15px",borderRadius:20,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,whiteSpace:"nowrap",fontFamily:"inherit",background:activeCat===c.id?"linear-gradient(135deg,#FF5722,#FF9800)":D.card,color:activeCat===c.id?"#fff":D.sub,boxShadow:activeCat===c.id?"0 4px 14px rgba(255,87,34,.35)":`0 2px 8px rgba(0,0,0,${dark?.12:.07})` }}>{c.icon} {lang==="hi"?c.labelHi:c.label}</button>)}
       </div>
       {products.length===0 ? <div style={{ textAlign:"center",padding:"70px 0",color:D.sub }}><div style={{ fontSize:52,marginBottom:10 }}>🔍</div><p style={{ fontWeight:700,fontSize:17 }}>{T("noDeals")}</p><p style={{ fontSize:13,marginTop:7 }}>{T("adjustFilters")}</p></div>
-        : <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:16 }}>{products.map(p => <PC key={p.id} p={p} D={D} dark={dark} T={T} onShop={onShop} wishlist={wishlist} onWishlist={onWishlist} onCompare={onCompare} onReview={onReview} onPriceDrop={onPriceDrop} onEMI={onEMI} onShareCard={onShareCard} onPriceHistory={onPriceHistory} />)}</div>}
+        : <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:16 }}>{products.map(p => <PC key={p.id} p={p} D={D} dark={dark} T={T} onShop={onShop} wishlist={wishlist} onWishlist={onWishlist} onCompare={onCompare} onReview={onReview} />)}</div>}
     </div>
   );
 }
@@ -850,19 +792,22 @@ function StoresPage({ D, stores, onShop }) {
 }
 
 /* ══════  WISHLIST PAGE  ══════ */
-function WishlistPage({ D, wishlist, onShop, onWishlist, onCompare, onReview, onNavigate, onPriceDrop, onEMI, onShareCard, onPriceHistory }) {
+function WishlistPage({ D, wishlist, onShop, onWishlist, onCompare, onReview, onNavigate }) {
   if (!wishlist.length) return <div style={{ textAlign:"center",padding:"80px 6%",color:D.sub }}><div style={{ fontSize:60,marginBottom:12 }}>❤️</div><h2 style={{ fontWeight:800,fontSize:20,color:D.text,marginBottom:6 }}>Your Wishlist is Empty</h2><p style={{ fontSize:14,marginBottom:22 }}>Save deals you love and come back anytime</p><button onClick={() => onNavigate("deals")} style={{ background:"linear-gradient(135deg,#FF5722,#FF9800)",color:"#fff",border:"none",borderRadius:12,padding:"12px 28px",fontWeight:800,cursor:"pointer",fontSize:14,fontFamily:"inherit" }}>Browse Deals →</button></div>;
-  return <div style={{ padding:"28px 6%" }}><h1 style={{ fontSize:22,fontWeight:800,marginBottom:4 }}>❤️ My Wishlist</h1><p style={{ color:D.sub,fontSize:13,marginBottom:22 }}>{wishlist.length} saved deal{wishlist.length!==1?"s":""}</p><div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:16 }}>{wishlist.map(p => <PC key={p.id} p={p} D={D} onShop={onShop} wishlist={wishlist} onWishlist={onWishlist} onCompare={onCompare} onReview={onReview} onPriceDrop={onPriceDrop} onEMI={onEMI} onShareCard={onShareCard} onPriceHistory={onPriceHistory} />)}</div></div>;
+  return <div style={{ padding:"28px 6%" }}><h1 style={{ fontSize:22,fontWeight:800,marginBottom:4 }}>❤️ My Wishlist</h1><p style={{ color:D.sub,fontSize:13,marginBottom:22 }}>{wishlist.length} saved deal{wishlist.length!==1?"s":""}</p><div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:16 }}>{wishlist.map(p => <PC key={p.id} p={p} D={D} onShop={onShop} wishlist={wishlist} onWishlist={onWishlist} onCompare={onCompare} onReview={onReview} />)}</div></div>;
 }
 
 /* ══════  TRACKER PAGE  ══════ */
-function TrackerPage({ D, T, purchases, setPurchases, totalSpent, totalEarned, totalPending, onAdd, points, pointsHistory }) {
+function TrackerPage({ D, T, purchases, loadingPurchases, deletePurchase, totalSpent, totalEarned, totalPending, onAdd, onRaiseMissing, points, pointsHistory, missingRequests }) {
   const statusColor = { pending:"#F6AD55", confirmed:"#63B3ED", paid:"#68D391" };
   return (
     <div style={{ padding:"28px 6%" }}>
       <div style={{ display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:12,marginBottom:24 }}>
         <div><h1 style={{ fontSize:22,fontWeight:800,marginBottom:3 }}>{T("myTracker")}</h1><p style={{ color:D.sub,fontSize:13 }}>{T("trackAll")}</p></div>
-        <button onClick={onAdd} style={{ background:"linear-gradient(135deg,#FF5722,#FF9800)",color:"#fff",border:"none",borderRadius:11,padding:"10px 20px",fontWeight:800,cursor:"pointer",fontSize:13,fontFamily:"inherit" }}>+ {T("addPurchase")}</button>
+        <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+          <button onClick={onRaiseMissing} style={{ background:D.card,color:"#FF5722",border:"2px solid #FF5722",borderRadius:11,padding:"10px 16px",fontWeight:700,cursor:"pointer",fontSize:12,fontFamily:"inherit" }}>⚠️ Missing Cashback?</button>
+          <button onClick={onAdd} style={{ background:"linear-gradient(135deg,#FF5722,#FF9800)",color:"#fff",border:"none",borderRadius:11,padding:"10px 20px",fontWeight:800,cursor:"pointer",fontSize:13,fontFamily:"inherit" }}>+ {T("addPurchase")}</button>
+        </div>
       </div>
       <LoyaltyBar points={points} D={D} />
       <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(170px,1fr))",gap:14,marginBottom:24 }}>
@@ -874,7 +819,29 @@ function TrackerPage({ D, T, purchases, setPurchases, totalSpent, totalEarned, t
           </div>
         ))}
       </div>
-      {purchases.length === 0 ? <div style={{ textAlign:"center",padding:"50px 0",color:D.sub }}><div style={{ fontSize:48,marginBottom:10 }}>📦</div><p style={{ fontWeight:700 }}>{T("noPurchases")}</p><p style={{ fontSize:13,marginTop:6 }}>{T("startShopping")}</p></div> : (
+
+      {/* How cashback works info box */}
+      <div style={{ background:"linear-gradient(135deg,#FF572211,#FF980011)",border:"1.5px solid #FF572233",borderRadius:14,padding:"16px 20px",marginBottom:20,fontSize:13,lineHeight:1.8,color:D.text }}>
+        <strong>💡 How your cashback is tracked:</strong><br/>
+        1. Click any deal on SaveKaro → you are redirected to the store<br/>
+        2. Complete your purchase on the store's website<br/>
+        3. Cashback appears here as <span style={{ color:"#F6AD55",fontWeight:700 }}>Pending</span> within 24–72 hrs<br/>
+        4. After return window closes it becomes <span style={{ color:"#63B3ED",fontWeight:700 }}>Confirmed</span>, then <span style={{ color:"#48BB78",fontWeight:700 }}>Paid</span>
+      </div>
+
+      {loadingPurchases ? (
+        <div style={{ textAlign:"center",padding:"40px 0",color:D.sub }}>
+          <div style={{ fontSize:32,marginBottom:10 }}>⏳</div>
+          <p>Loading your purchases…</p>
+        </div>
+      ) : purchases.length === 0 ? (
+        <div style={{ textAlign:"center",padding:"50px 0",color:D.sub }}>
+          <div style={{ fontSize:52,marginBottom:10 }}>🛒</div>
+          <p style={{ fontWeight:700,fontSize:16,marginBottom:8 }}>No purchases yet</p>
+          <p style={{ fontSize:13,marginBottom:20 }}>Start shopping through our links to earn cashback!</p>
+          <p style={{ fontSize:12,color:D.sub }}>Already shopped? Click "+ Add Purchase" to add it manually.</p>
+        </div>
+      ) : (
         <div style={{ background:D.card,borderRadius:14,overflow:"hidden",boxShadow:"0 3px 14px rgba(0,0,0,.07)",border:`1px solid ${D.border}`,overflowX:"auto" }}>
           <table>
             <thead><tr style={{ background:D.bg }}>{["Date","Store","Product","Paid","Cashback","Status",""].map(h => <th key={h} style={{ color:D.sub,fontWeight:700,fontSize:11,letterSpacing:.4,borderBottom:`1px solid ${D.border}` }}>{h}</th>)}</tr></thead>
@@ -886,14 +853,33 @@ function TrackerPage({ D, T, purchases, setPurchases, totalSpent, totalEarned, t
                   <td style={{ maxWidth:140,fontSize:12 }}>{p.product}</td>
                   <td style={{ fontWeight:700,fontSize:12 }}>{fmt(p.amount)}</td>
                   <td style={{ fontWeight:800,color:"#48BB78",fontSize:12 }}>+{fmt(p.cashback)}</td>
-                  <td><span style={{ background:`${statusColor[p.status]}22`,color:statusColor[p.status],fontSize:10,fontWeight:800,padding:"3px 9px",borderRadius:10,textTransform:"capitalize" }}>{p.status}</span></td>
-                  <td><button onClick={() => setPurchases(prev => prev.filter(x => x.id!==p.id))} style={{ background:"none",border:"none",cursor:"pointer",color:"#FC8181",fontSize:15 }}>🗑</button></td>
+                  <td><span style={{ background:`${statusColor[p.status]||"#a0aec0"}22`,color:statusColor[p.status]||"#a0aec0",fontSize:10,fontWeight:800,padding:"3px 9px",borderRadius:10,textTransform:"capitalize" }}>{p.status}</span></td>
+                  <td><button onClick={() => deletePurchase(p.id)} style={{ background:"none",border:"none",cursor:"pointer",color:"#FC8181",fontSize:15 }}>🗑</button></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      {/* Missing cashback requests */}
+      {missingRequests?.length > 0 && (
+        <div style={{ marginTop:24 }}>
+          <h3 style={{ fontSize:15,fontWeight:800,marginBottom:14 }}>⚠️ Missing Cashback Requests</h3>
+          <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+            {missingRequests.map(r => (
+              <div key={r.id} style={{ background:D.card,borderRadius:10,padding:"12px 16px",border:`1px solid ${D.border}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8 }}>
+                <div>
+                  <div style={{ fontSize:13,fontWeight:700 }}>{r.store} — {r.orderId}</div>
+                  <div style={{ fontSize:11,color:D.sub }}>{r.purchaseDate} • ₹{r.amount}</div>
+                </div>
+                <span style={{ background:r.status==="resolved"?"#48BB7822":r.status==="reviewing"?"#63B3ED22":"#F6AD5522",color:r.status==="resolved"?"#276749":r.status==="reviewing"?"#2C7A7B":"#B7791F",fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:10,textTransform:"capitalize" }}>{r.status}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {pointsHistory.length > 0 && (
         <div style={{ marginTop:24 }}>
           <h3 style={{ fontSize:15,fontWeight:800,marginBottom:14 }}>{T("pointsHistory")}</h3>
@@ -971,7 +957,7 @@ function LegalPage({ D }) {
 }
 
 /* ══════  PRODUCT CARD  ══════ */
-function PC({ p, D, dark, T, onShop, wishlist, onWishlist, onCompare, onReview, featured, onPriceDrop, onEMI, onShareCard, onPriceHistory }) {
+function PC({ p, D, dark, T, onShop, wishlist, onWishlist, onCompare, onReview, featured }) {
   const d = disc(p.mrp, p.price);
   const isWished = wishlist ? wishlist.some(w => w.id === p.id) : false;
   const isTrending = p.clicks >= TRENDING_THRESHOLD;
@@ -1022,6 +1008,76 @@ function PC({ p, D, dark, T, onShop, wishlist, onWishlist, onCompare, onReview, 
     </div>
   );
 }
+
+
+/* ══════  MISSING CASHBACK MODAL  ══════ */
+function MissingCashbackModal({ D, user, onClose, submitRequest, showToast, missingRequests }) {
+  const [form, setForm] = useState({ store:"Amazon", orderId:"", amount:"", purchaseDate:new Date().toISOString().split("T")[0], description:"" });
+  const [loading, setLoading] = useState(false);
+  const OV = { position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:8000,display:"flex",alignItems:"center",justifyContent:"center" };
+  const MB = { background:D.card,borderRadius:20,padding:"28px",maxWidth:460,width:"92%",position:"relative",color:D.text,maxHeight:"90vh",overflowY:"auto" };
+
+  const handleSubmit = async () => {
+    if (!user) { showToast("Please login first", "info"); onClose(); return; }
+    if (!form.orderId || !form.amount) { showToast("Please fill Order ID and Amount", "info"); return; }
+    setLoading(true);
+    try {
+      await submitRequest({ ...form, amount: Number(form.amount), userName: user.name, userEmail: user.email });
+      showToast("Request submitted! We'll review within 3–5 days. 📋");
+      onClose();
+    } catch (err) {
+      showToast("Failed to submit. Please try again.", "info");
+    }
+    setLoading(false);
+  };
+
+  const inp = { width:"100%", padding:"11px 14px", borderRadius:10, border:`1.5px solid ${D.inputBorder}`, fontSize:13, outline:"none", background:D.input, color:D.text, fontFamily:"inherit", marginBottom:12 };
+
+  return (
+    <div style={OV} onClick={e => e.target===e.currentTarget && onClose()}>
+      <div style={MB}>
+        <button onClick={onClose} style={{ position:"absolute",top:14,right:16,background:"none",border:"none",fontSize:22,cursor:"pointer",color:D.sub }}>✕</button>
+        <div style={{ fontSize:36,textAlign:"center",marginBottom:8 }}>⚠️</div>
+        <h2 style={{ fontSize:18,fontWeight:900,textAlign:"center",marginBottom:4 }}>Raise Missing Cashback</h2>
+        <p style={{ color:D.sub,fontSize:13,textAlign:"center",marginBottom:20,lineHeight:1.6 }}>
+          Cashback not showing? Submit your order details and we'll investigate within 3–5 working days.
+        </p>
+
+        {/* Info box */}
+        <div style={{ background:D.input,borderRadius:10,padding:"12px 14px",marginBottom:16,fontSize:12,color:D.sub,lineHeight:1.7 }}>
+          <strong style={{ color:D.text }}>📋 Before raising a request, make sure:</strong><br/>
+          • At least 72 hours have passed since your order<br/>
+          • You clicked the SaveKaro link BEFORE adding to cart<br/>
+          • You didn't use Incognito mode or clear cookies<br/>
+          • The order was not cancelled or returned
+        </div>
+
+        <label style={{ fontSize:12,fontWeight:600,color:D.sub,display:"block",marginBottom:5 }}>Store *</label>
+        <select value={form.store} onChange={e=>setForm(f=>({...f,store:e.target.value}))} style={{ ...inp }}>
+          {["Amazon","Flipkart","Myntra","Nykaa","Ajio","Swiggy","MakeMyTrip","Meesho","Other"].map(s=><option key={s}>{s}</option>)}
+        </select>
+
+        <label style={{ fontSize:12,fontWeight:600,color:D.sub,display:"block",marginBottom:5 }}>Order ID * <span style={{ fontWeight:400 }}>(from order confirmation email)</span></label>
+        <input value={form.orderId} onChange={e=>setForm(f=>({...f,orderId:e.target.value}))} placeholder="e.g. 408-1234567-8901234" style={inp} />
+
+        <label style={{ fontSize:12,fontWeight:600,color:D.sub,display:"block",marginBottom:5 }}>Order Amount (₹) *</label>
+        <input type="number" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))} placeholder="e.g. 1499" style={inp} />
+
+        <label style={{ fontSize:12,fontWeight:600,color:D.sub,display:"block",marginBottom:5 }}>Purchase Date *</label>
+        <input type="date" value={form.purchaseDate} onChange={e=>setForm(f=>({...f,purchaseDate:e.target.value}))} style={inp} />
+
+        <label style={{ fontSize:12,fontWeight:600,color:D.sub,display:"block",marginBottom:5 }}>Additional Details <span style={{ fontWeight:400 }}>(optional)</span></label>
+        <textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Any other details that might help us track your cashback…" rows={2} style={{ ...inp, resize:"none" }} />
+
+        <button onClick={handleSubmit} disabled={loading} style={{ width:"100%",padding:"13px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#FF5722,#FF9800)",color:"#fff",fontWeight:800,fontSize:14,cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",opacity:loading?.7:1 }}>
+          {loading ? "Submitting…" : "📤 Submit Request"}
+        </button>
+        <p style={{ fontSize:11,color:D.sub,textAlign:"center",marginTop:10 }}>Response will be sent to {user?.email || "your registered email"}</p>
+      </div>
+    </div>
+  );
+}
+
 
 /* ══════  SECTION HEADER  ══════ */
 function SH({ D, title, sub, cta, onCta }) {
