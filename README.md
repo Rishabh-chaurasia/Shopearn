@@ -1,187 +1,200 @@
-# 💸 SaveKaro v4.1 — Complete Affiliate Cashback Platform
+# SaveKaro 💸
 
-India's most complete cashback & deals website. Built with React.
-
----
-
-## 🚀 Quick Start
-
-```bash
-npm install
-npm start        # Development
-npm run build    # Production build
-```
+A cashback and deals platform built for Indian shoppers. Find deals from top stores like Amazon, Flipkart, Myntra, Nykaa and more — click through our links, shop normally, and claim your cashback.
 
 ---
 
-## 📁 File Structure
+## What is this?
+
+I built SaveKaro because I was tired of missing out on cashback while shopping online. Most cashback apps are either too complicated, don't support Indian payment methods, or take forever to pay out. SaveKaro keeps it simple — you shop, you claim, we verify, we pay.
+
+The site works as an affiliate cashback platform. When you click a deal through SaveKaro and buy something, the store pays us a small commission. We share a portion of that commission back with you as cashback.
+
+---
+
+## Features
+
+**For users**
+- Browse deals from 50+ Indian stores with real cashback rates
+- Search and filter by category, price range, discount, rating
+- Save products to wishlist (syncs across devices via Firebase)
+- AI deal finder chatbot — type what you want, get matched products
+- Spin & Win wheel for discount coupon codes
+- Dark mode and Hindi/English language toggle
+- Claim cashback after purchase — just fill your Order ID and amount
+- Track all your cashback claims and their status
+- Raise missing cashback requests linked to your actual store visits
+
+**For the platform**
+- Every affiliate link click is logged to Firestore with store, date, user ID
+- Missing cashback requests saved to Firebase for admin review
+- Google Sign-In and Email/Password authentication
+- Wishlist and purchase history synced per user to Firestore
+
+---
+
+## Tech Stack
+
+- **Frontend** — React 18
+- **Auth** — Firebase Authentication (Google + Email/Password)
+- **Database** — Cloud Firestore
+- **Hosting** — Vercel
+- **Affiliate programs** — Amazon Associates India, vCommission
+
+---
+
+## How cashback works
+
+This is not automatic tracking. Here is the real flow:
+
+1. User logs in (required before any store redirect)
+2. User clicks a deal — the click is saved to Firestore with timestamp and store name
+3. User shops and completes their purchase on the store's website
+4. User comes back to SaveKaro → My Cashback → Claim Cashback
+5. The modal shows only the stores they actually visited (from click history)
+6. User selects the store and date, fills in their Order ID and purchase amount
+7. We receive this in Firebase and cross-check with our Amazon Associates / vCommission dashboard
+8. Once verified, we send cashback to the user's UPI ID
+9. We update the claim status in Firestore to Confirmed → Paid
+
+---
+
+## Project Structure
 
 ```
 src/
-├── App.jsx          # Main app — all pages, state, modals
-├── components.jsx   # SpinWheel, ShareButtons, AIChatbot, LoginModal, LoyaltyBar, ExpiryTimer, ProfileDropdown
-├── hooks.js         # usePersist, useCountdown, useToast, usePoints, useAuth
-├── data.js          # All products, stores, coupons, REDIRECT_MAP
-├── index.js         # Entry point
+├── App.jsx          — main app, all pages, routing, state
+├── components.jsx   — SpinWheel, LoginModal, AIChatbot, ShareButtons, etc.
+├── hooks.js         — useAuth, usePurchases, useWishlist, useClickTracker, useMissingCashback
+├── data.js          — products, stores, coupons, banners, spin prizes
+├── firebase.js      — Firebase config and Firestore helpers
+├── growth.jsx       — PWA banner, push notification banner, blog page
+└── polish.jsx       — ErrorBoundary, SkeletonGrid, CookieConsent, NotFoundPage
+
 public/
-├── index.html       # GA4 + FB Pixel + PWA meta tags
-├── manifest.json    # PWA manifest (installable app)
-├── sw.js            # Service worker (offline + push notifications)
+├── sw.js            — service worker for PWA
+├── manifest.json    — PWA manifest
+├── sitemap.xml      — for SEO
+└── robots.txt
 ```
 
 ---
 
-## ✅ Complete Feature List (v4.1)
+## Getting Started
 
-### 🔐 Security
-- **Secure link redirector** — Real affiliate URLs only in `REDIRECT_MAP`. Users see `/go/amz-tv-1` not your tag
-- Move `REDIRECT_MAP` to backend `/api/go/:slug` for full server-side protection
+**Prerequisites**
+- Node.js 16+
+- A Firebase project with Firestore and Authentication enabled
+- An Amazon Associates account (for the affiliate tag)
 
-### 💰 Monetization
-- Affiliate links for Amazon, Flipkart, Myntra, Nykaa, Ajio, Swiggy, MakeMyTrip, Meesho
-- Cashback tracker with purchase history
-- Coupon codes with copy-to-clipboard
+**Install**
 
-### 🤖 AI Features
-- **AI Deal Finder chatbot** — Powered by Claude AI. Users type naturally, get matched products with quick-shop cards
+```bash
+git clone https://github.com/yourusername/savekaro.git
+cd savekaro
+npm install --legacy-peer-deps
+```
 
-### 🎮 Engagement
-- **Spin & Win wheel** — Gamified coupon reveal (auto-shows after 20s, once per day)
-- **Loyalty points system** — Earn points for clicks, shares, signups, purchases
-- **Referral system** — Unique referral links per user
+**Firebase setup**
 
-### 👤 User System
-- **Login modal** — Google OAuth + Phone OTP (mock, connect Firebase/Supabase in production)
-- **User profile dropdown** — Points, level, quick navigation
-- **Persistent state** — Wishlist, tracker, dark mode saved via localStorage
+Create a `.env` file in the root or update `src/firebase.js` with your config:
 
-### 🛍️ Shopping
-- 12 curated products with real Unsplash images
-- **Price comparison** across stores
-- **Per-product expiry timers** (live countdown)
-- **Out of stock badges** with disabled state
-- **Trending badge** (auto-marks products with 8k+ clicks)
-- **Flash sale timer** (site-wide 48hr countdown)
-- **Advanced filters** — Sort by discount, cashback, price, rating, expiry
-
-### 📱 Mobile & PWA
-- **PWA manifest** — Users can install as app on phone homescreen
-- **Service worker** — Offline support + push notifications
-- **Mobile hamburger nav** — Full slide-out menu
-- **Dark mode** — Full dark theme, persisted
-
-### 🌐 Language
-- **Hindi / English toggle** — Every label switches instantly
-
-### 📣 Social & Growth
-- **Share buttons** on every product — WhatsApp, Telegram, Twitter, Copy Link
-- **Newsletter popup** (EmailJS-ready, auto-shows at 10s)
-- **WhatsApp Group link** in footer
-- **Referral link** with copy button
-
-### 📜 Legal (required by affiliate programs)
-- Privacy Policy
-- Terms of Use
-- Affiliate Disclosure
-
-### ❓ Trust
-- How Cashback Works page (6-step explainer)
-- User-submitted reviews with star rating
-
-### 📊 Analytics
-- Google Analytics 4 placeholder in index.html
-- Facebook Pixel placeholder in index.html
-- `trackEvent()` helper throughout app
-
-### 🔍 SEO
-- Dynamic `<title>` and meta tags per page
-- Open Graph tags for social sharing
-- Structured data (JSON-LD)
-
----
-
-## 🔧 Setup Checklist
-
-### 1. Replace Affiliate Links
-In `src/data.js`, find `REDIRECT_MAP` and replace:
-- `YOUR_AMAZON_TAG` → your Amazon Associates tag
-- `YOUR_FLIPKART_TAG` → your Flipkart affiliate ID
-- `YOUR_MYNTRA_TAG` → your Myntra affiliate tag
-- etc.
-
-### 2. Add Analytics IDs
-In `public/index.html`:
-- Replace `G-XXXXXXXXXX` with your Google Analytics 4 measurement ID
-- Replace `YOUR_PIXEL_ID` with your Facebook Pixel ID
-
-### 3. Connect EmailJS (Newsletter)
-In `src/App.jsx`, find the comment `// INTEGRATION: emailjs.send(...)` and add:
 ```js
-import emailjs from '@emailjs/browser';
-emailjs.send("YOUR_SERVICE_ID", "YOUR_TEMPLATE_ID", {
-  name: nlForm.name,
-  contact: nlForm.contact,
-  from_name: "SaveKaro",
-});
+const firebaseConfig = {
+  apiKey: "your-api-key",
+  authDomain: "your-project.firebaseapp.com",
+  projectId: "your-project-id",
+  storageBucket: "your-project.firebasestorage.app",
+  messagingSenderId: "your-sender-id",
+  appId: "your-app-id"
+};
 ```
 
-### 4. Connect Firebase Auth (Login)
-In `src/components.jsx`, replace mock login functions with:
-```js
-import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-const result = await signInWithPopup(auth, new GoogleAuthProvider());
-onLogin({ name: result.user.displayName, email: result.user.email, ... });
+Enable these in Firebase Console:
+- Authentication → Google and Email/Password
+- Firestore Database → create in your preferred region
+- Add your domain to Authorized Domains
+
+**Firestore Security Rules**
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+    match /clicks/{doc} {
+      allow create: if true;
+      allow read: if false;
+    }
+    match /missingCashbackRequests/{doc} {
+      allow create: if request.auth != null;
+      allow read: if false;
+    }
+  }
+}
 ```
 
-### 5. Connect Firebase/Supabase (Persistent User Data)
-Replace `usePersist` localStorage calls with real database saves for:
-- Wishlist
-- Purchase history
-- Loyalty points
-- Newsletter subscribers
+**Run locally**
 
-### 6. Backend Redirect API (Most Important for Security)
-Create an Express/Next.js endpoint:
-```js
-app.get('/api/go/:slug', (req, res) => {
-  const url = REDIRECT_MAP[req.params.slug];
-  if (!url) return res.status(404).json({ error: 'Not found' });
-  // Log the click here for analytics
-  res.json({ url });
-});
+```bash
+npm start
 ```
-Then in `App.jsx` replace `goTo()` with:
-```js
-const { url } = await fetch(`/api/go/${slug}`).then(r => r.json());
-window.open(url, '_blank', 'noopener,noreferrer');
+
+**Build for production**
+
+```bash
+set CI=false && npm run build   # Windows
+CI=false npm run build          # Mac/Linux
 ```
 
 ---
 
-## 🌐 Deploy to Vercel (Free)
+## Firestore Collections
 
-1. Push to GitHub
-2. Go to vercel.com → Import Project
-3. Select your repo
-4. Click Deploy
-
-Your site will be live at `yourproject.vercel.app` in ~2 minutes.
-
----
-
-## 💡 Affiliate Programs to Sign Up For
-
-| Store | Program | URL |
-|-------|---------|-----|
-| Amazon | Amazon Associates India | affiliate-program.amazon.in |
-| Flipkart | Flipkart Affiliate | affiliate.flipkart.com |
-| Myntra | Admitad / vCommission | vcommission.com |
-| Nykaa | vCommission | vcommission.com |
-| Ajio | vCommission | vcommission.com |
-| Swiggy | Apply directly | swiggy.com/affiliate |
-| MakeMyTrip | MMT Affiliate | affiliate.makemytrip.com |
+| Collection | Purpose |
+|---|---|
+| `users/{uid}/wishlist` | User's saved products |
+| `users/{uid}/purchases` | Cashback claims submitted by user |
+| `users/{uid}/clicks` | Stores visited via SaveKaro (last 30 days used for claim flow) |
+| `users/{uid}/missingCashback` | User's view of their claim requests |
+| `clicks` | Global click log for analytics |
+| `missingCashbackRequests` | All cashback claims for admin review |
 
 ---
 
-## 📞 Support
-Email: support@SaveKaro.in
+## Affiliate Setup
+
+Update `src/data.js` with your affiliate tags:
+
+```js
+// Amazon — replace with your Associates tag
+"go-amazon": "https://www.amazon.in/?tag=YOUR_TAG"
+
+// vCommission stores — replace after approval
+"go-myntra": "YOUR_VCOMMISSION_LINK"
+"go-nykaa":  "YOUR_VCOMMISSION_LINK"
+```
+
+---
+
+## Deployment
+
+The project is deployed on Vercel. Connect your GitHub repo to Vercel and it deploys automatically on every push to main.
+
+Add your Vercel domain to Firebase Console → Authentication → Authorized Domains.
+
+---
+
+## License
+
+MIT — free to use, modify and distribute.
+
+---
+
+## Contact
+
+Built by Rishabh Chaurasia  
+Email: support@savekaro.in  
+Site: https://save-karo.vercel.app
