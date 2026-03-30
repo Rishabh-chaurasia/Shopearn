@@ -83,10 +83,10 @@ export const REDIRECT_MAP = {
 export const SITE = {
   name:           "SaveKaro",
   url:            "https://save-karo.vercel.app",
-  whatsapp:       "https://wa.me/91XXXXXXXXXX",
+  whatsapp:       "https://wa.me/7052557408",
   whatsappGroup:  "https://whatsapp.com/channel/0029VbC98wKHrDZWUnPjB72O",
   instagram:      "https://www.instagram.com/savekaro2026/",
-  email:          "support@savekaro.in",
+  email:          "savekaro2026@gmail.com",
 };
 
 export const BANNERS = [
