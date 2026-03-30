@@ -1,5 +1,5 @@
 import emailjs from "@emailjs/browser";import { useState, useEffect, useRef } from "react";
-import { REDIRECT_MAP, SITE, PRODUCTS, COUPONS, STORES, BANNERS, CATEGORIES, SORT_OPTIONS } from "./data.js";
+import { REDIRECT_MAP, SITE, PRODUCTS, COUPONS, STORES, BANNERS, CATEGORIES, SORT_OPTIONS, CREDIT_OFFERS } from "./data.js";
 import { usePersist, useCountdown, useToast, useAuth, usePurchases, useClickTracker, useMissingCashback, useWishlist } from "./hooks.js";
 import { SpinWheel, ShareButtons, ExpiryTimer, LoginModal, AIChatbot, ProfileDropdown } from "./components.jsx";
 import { ExitIntentPopup, PWAInstallBanner, PushNotificationBanner, AntiAdblockBanner, FeaturedDealOfDay, LiveChatButton, BlogPage } from "./growth.jsx";
@@ -151,6 +151,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [pendingShop, setPendingShop] = useState(null); // stores intended shop after login
   const [nlForm, setNlForm] = useState({ name:"", contact:"" });
   const { user, login, logout } = useAuth();
   // Points system removed from UI — keeping award as no-op to avoid breaking other calls
@@ -302,7 +303,21 @@ export default function App() {
       {toast && <div style={{ position:"fixed",top:20,right:20,zIndex:9999,background:dark?"#1e2130":"#1a202c",color:"#fff",padding:"13px 20px",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,.3)",fontSize:14,fontWeight:600,borderLeft:`4px solid ${toast.type==="info"?"#63B3ED":"#48BB78"}`,animation:"slideDown .3s ease",maxWidth:340,lineHeight:1.5 }}>{toast.msg}</div>}
 
       {/* MODALS */}
-      {showLogin    && <LoginModal D={D} onClose={() => setShowLogin(false)} onLogin={u => { login(u); showToast(`Welcome, ${u.name}! 🎉`); }} />}
+      {showLogin    && <LoginModal D={D} pendingShop={pendingShop} onClose={() => { setShowLogin(false); setPendingShop(null); }} onLogin={u => {
+        login(u);
+        showToast(`Welcome, ${u.name}! 🎉`);
+        setShowLogin(false);
+        // Auto-open the store they were trying to visit before login
+        if (pendingShop) {
+          const { slug, storeName, product } = pendingShop;
+          setPendingShop(null);
+          setTimeout(() => {
+            if (product) setRecentlyViewed(p => [product, ...p.filter(x => x.id !== product.id)].slice(0, 8));
+            trackClick(product, slug);
+            goTo(slug, storeName, showToast);
+          }, 800);
+        }
+      }} />}
       {showSpin     && <SpinWheel D={D} onClose={() => setShowSpin(false)} onWin={handleSpinWin} />}
       {showChatbot  && <AIChatbot D={D} products={PRODUCTS} onShop={handleShop} onClose={() => setShowChatbot(false)} />}
 
@@ -505,7 +520,7 @@ export default function App() {
       {/* PAGES */}
       {isLoading ? (
         <div style={{ padding:"32px 6%" }}><SkeletonGrid count={8} /></div>
-      ) : page==="home"       ? <HomePage D={D} dark={dark} lang={lang} T={T} bannerIdx={bannerIdx} setBannerIdx={setBannerIdx} onShop={handleShop} onNavigate={setPage} stores={STORES} wishlist={wishlist} onWishlist={toggleWishlist} onCompare={setShowCompare} onReview={setShowReview} budgetMax={budgetMax} setBudgetMax={setBudgetMax} onReferral={handleReferral} linkCopied={linkCopied} />
+      ) : page==="home"       ? <HomePage D={D} dark={dark} lang={lang} T={T} bannerIdx={bannerIdx} setBannerIdx={setBannerIdx} onShop={handleShop} onNavigate={setPage} stores={STORES} wishlist={wishlist} onWishlist={toggleWishlist} onCompare={setShowCompare} onReview={setShowReview} budgetMax={budgetMax} setBudgetMax={setBudgetMax} onReferral={handleReferral} linkCopied={linkCopied} creditOffers={CREDIT_OFFERS} />
       : page==="deals"      ? <DealsPage D={D} dark={dark} lang={lang} T={T} products={filtered} categories={CATEGORIES} activeCat={activeCat} setActiveCat={setActiveCat} onShop={handleShop} search={search} setSearch={setSearch} wishlist={wishlist} onWishlist={toggleWishlist} onCompare={setShowCompare} onReview={setShowReview} budgetMax={budgetMax} setBudgetMax={setBudgetMax} sortBy={sortBy} setSortBy={setSortBy} />
       : page==="coupons"    ? <CouponsPage D={D} coupons={COUPONS} onCopy={handleCopy} copied={copied} onShop={handleShop} />
       : page==="stores"     ? <StoresPage D={D} stores={STORES} onShop={handleShop} />
@@ -599,7 +614,7 @@ function WriteReview({ D, product, onSubmit }) {
 }
 
 /* ══════  HOME PAGE  ══════ */
-function HomePage({ D, dark, lang, T, bannerIdx, setBannerIdx, onShop, onNavigate, stores, wishlist, onWishlist, onCompare, onReview, budgetMax, setBudgetMax, onReferral, linkCopied }) {
+function HomePage({ D, dark, lang, T, bannerIdx, setBannerIdx, onShop, onNavigate, stores, wishlist, onWishlist, onCompare, onReview, budgetMax, setBudgetMax, onReferral, linkCopied, creditOffers }) {
   const b = BANNERS[bannerIdx];
   const topDeals = PRODUCTS.filter(p => p.topDeal);
   return (
@@ -644,7 +659,122 @@ function HomePage({ D, dark, lang, T, bannerIdx, setBannerIdx, onShop, onNavigat
         <div><h3 style={{ color:"#fff",fontSize:20,fontWeight:900,marginBottom:6 }}>{T("referEarn")}</h3><p style={{ color:"rgba(255,255,255,.85)",fontSize:13 }}>{T("referDesc")}</p></div>
         <button onClick={onReferral} style={{ background:linkCopied?"#48BB78":"#fff",color:linkCopied?"#fff":"#6C63FF",border:"none",borderRadius:12,padding:"12px 24px",fontWeight:800,cursor:"pointer",fontSize:13,fontFamily:"inherit",flexShrink:0 }}>{linkCopied?T("linkCopied"):T("copyReferral")}</button>
       </div>
-      <div style={{ background:D.card,padding:"48px 6%",textAlign:"center" }}>
+      {/* ══ CREDIT CARD OFFERS SECTION ══ */}
+      {creditOffers && creditOffers.length > 0 && (
+        <div style={{ padding:"32px 6%",background:D.bg }}>
+          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,flexWrap:"wrap",gap:10 }}>
+            <div>
+              <h2 style={{ fontSize:21,fontWeight:800,marginBottom:3 }}>💳 Credit Card Offers</h2>
+              <p style={{ color:D.sub,fontSize:13 }}>Apply & earn rewards on every spend</p>
+            </div>
+          </div>
+          <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:16 }}>
+            {creditOffers.map((card, i) => (
+              <div key={i} className="ch" style={{ borderRadius:18,overflow:"hidden",boxShadow:"0 8px 28px rgba(0,0,0,.18)",position:"relative" }}>
+                {/* Card background */}
+                <div style={{ background:`linear-gradient(135deg,${card.color},${i===0?"#334155":"#1e3a5f"})`,padding:"24px 22px 20px" }}>
+                  {/* Badge */}
+                  <span style={{ background:"rgba(255,87,34,.9)",color:"#fff",fontSize:10,fontWeight:800,padding:"3px 10px",borderRadius:12,letterSpacing:.5 }}>{card.badge}</span>
+                  {/* Card chip design */}
+                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:16,marginBottom:20 }}>
+                    <span style={{ fontSize:36 }}>{card.icon}</span>
+                    <div style={{ width:40,height:30,background:"linear-gradient(135deg,#FFD700,#FFA500)",borderRadius:5,opacity:.8 }} />
+                  </div>
+                  {/* Card number placeholder */}
+                  <div style={{ display:"flex",gap:8,marginBottom:14 }}>
+                    {["●●●●","●●●●","●●●●","1234"].map((s,j) => (
+                      <span key={j} style={{ color:"rgba(255,255,255,.7)",fontSize:13,letterSpacing:1 }}>{s}</span>
+                    ))}
+                  </div>
+                  <div>
+                    <div style={{ color:"#fff",fontWeight:800,fontSize:16 }}>{card.name}</div>
+                    <div style={{ color:"rgba(255,255,255,.7)",fontSize:12,marginTop:2 }}>{card.subtitle}</div>
+                  </div>
+                </div>
+                {/* Apply button */}
+                <div style={{ background:D.card,padding:"14px 22px",display:"flex",alignItems:"center",justifyContent:"space-between" }}>
+                  <span style={{ fontSize:12,color:D.sub,fontWeight:600 }}>Zero annual fee • Instant approval</span>
+                  <button onClick={() => window.open(card.link,"_blank","noopener,noreferrer")}
+                    style={{ background:"linear-gradient(135deg,#FF5722,#FF9800)",color:"#fff",border:"none",borderRadius:10,padding:"9px 18px",fontWeight:800,cursor:"pointer",fontSize:13,fontFamily:"inherit",whiteSpace:"nowrap" }}>
+                    Apply Now →
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ══ CREDIT CARD OFFERS SECTION ══ */}
+      {creditOffers && creditOffers.length > 0 && (
+        <div style={{ padding:"32px 6%",background:D.bg }}>
+          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,flexWrap:"wrap",gap:10 }}>
+            <div>
+              <h2 style={{ fontSize:21,fontWeight:800,marginBottom:3 }}>💳 Credit Card Offers</h2>
+              <p style={{ color:D.sub,fontSize:13 }}>Apply & earn rewards on every spend</p>
+            </div>
+          </div>
+          <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:16 }}>
+            {creditOffers.map((card, i) => (
+              <div key={i} className="ch" style={{ borderRadius:18,overflow:"hidden",boxShadow:"0 8px 28px rgba(0,0,0,.18)" }}>
+                <div style={{ background:`linear-gradient(135deg,${card.color},${i===0?"#334155":"#1e3a5f"})`,padding:"24px 22px 20px" }}>
+                  <span style={{ background:"rgba(255,87,34,.9)",color:"#fff",fontSize:10,fontWeight:800,padding:"3px 10px",borderRadius:12,letterSpacing:.5 }}>{card.badge}</span>
+                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:16,marginBottom:20 }}>
+                    <span style={{ fontSize:36 }}>{card.icon}</span>
+                    <div style={{ width:40,height:30,background:"linear-gradient(135deg,#FFD700,#FFA500)",borderRadius:5,opacity:.8 }} />
+                  </div>
+                  <div style={{ display:"flex",gap:8,marginBottom:14 }}>
+                    {["●●●●","●●●●","●●●●","****"].map((s,j) => (
+                      <span key={j} style={{ color:"rgba(255,255,255,.6)",fontSize:13,letterSpacing:1 }}>{s}</span>
+                    ))}
+                  </div>
+                  <div style={{ color:"#fff",fontWeight:800,fontSize:16 }}>{card.name}</div>
+                  <div style={{ color:"rgba(255,255,255,.7)",fontSize:12,marginTop:2 }}>{card.subtitle}</div>
+                </div>
+                <div style={{ background:D.card,padding:"14px 22px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10 }}>
+                  <span style={{ fontSize:12,color:D.sub,fontWeight:600 }}>Zero fee • Instant approval</span>
+                  <button onClick={() => window.open(card.link,"_blank","noopener,noreferrer")}
+                    style={{ background:"linear-gradient(135deg,#FF5722,#FF9800)",color:"#fff",border:"none",borderRadius:10,padding:"9px 16px",fontWeight:800,cursor:"pointer",fontSize:12,fontFamily:"inherit",whiteSpace:"nowrap" }}>
+                    Apply Now →
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ══ CREDIT CARD OFFERS SECTION ══ */}
+      {creditOffers && creditOffers.length > 0 && (
+        <div style={{ padding:"32px 6%",background:D.bg }}>
+          <h2 style={{ fontSize:21,fontWeight:800,marginBottom:6 }}>💳 Credit Card Offers</h2>
+          <p style={{ color:D.sub,fontSize:13,marginBottom:20 }}>Apply & earn rewards on every spend</p>
+          <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:16 }}>
+            {creditOffers.map((card, i) => (
+              <div key={i} className="ch" style={{ borderRadius:18,overflow:"hidden",boxShadow:"0 8px 28px rgba(0,0,0,.18)" }}>
+                <div style={{ background:`linear-gradient(135deg,${card.color},${i===0?"#334155":"#1e3a5f"})`,padding:"24px 22px 20px" }}>
+                  <span style={{ background:"rgba(255,87,34,.9)",color:"#fff",fontSize:10,fontWeight:800,padding:"3px 10px",borderRadius:12 }}>{card.badge}</span>
+                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:16,marginBottom:20 }}>
+                    <span style={{ fontSize:36 }}>{card.icon}</span>
+                    <div style={{ width:40,height:30,background:"linear-gradient(135deg,#FFD700,#FFA500)",borderRadius:5,opacity:.8 }} />
+                  </div>
+                  <div style={{ display:"flex",gap:8,marginBottom:12 }}>
+                    {["●●●●","●●●●","●●●●","****"].map((s,j) => <span key={j} style={{ color:"rgba(255,255,255,.6)",fontSize:13,letterSpacing:1 }}>{s}</span>)}
+                  </div>
+                  <div style={{ color:"#fff",fontWeight:800,fontSize:16 }}>{card.name}</div>
+                  <div style={{ color:"rgba(255,255,255,.7)",fontSize:12,marginTop:2 }}>{card.subtitle}</div>
+                </div>
+                <div style={{ background:D.card,padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10 }}>
+                  <span style={{ fontSize:12,color:D.sub,fontWeight:600 }}>Zero fee • Instant approval</span>
+                  <button onClick={() => window.open(card.link,"_blank","noopener,noreferrer")} style={{ background:"linear-gradient(135deg,#FF5722,#FF9800)",color:"#fff",border:"none",borderRadius:10,padding:"9px 16px",fontWeight:800,cursor:"pointer",fontSize:12,fontFamily:"inherit",whiteSpace:"nowrap" }}>Apply Now →</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+            <div style={{ background:D.card,padding:"48px 6%",textAlign:"center" }}>
         <h2 style={{ fontSize:24,fontWeight:800,marginBottom:8 }}>{T("howSaveKaroWorks")}</h2>
         <p style={{ color:D.sub,marginBottom:40,fontSize:14 }}>{T("howItWorksSubtitle")}</p>
         <div style={{ display:"flex",justifyContent:"center",flexWrap:"wrap",gap:0 }}>

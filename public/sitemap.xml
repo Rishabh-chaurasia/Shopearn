@@ -10,7 +10,7 @@
 
   <!-- MAIN PAGES -->
   <url>
-    <loc>https://YOUR-DOMAIN.com/</loc>
+    <loc>https://save-karo.vercel.app/</loc>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>

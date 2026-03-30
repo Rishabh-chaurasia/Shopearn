@@ -15,7 +15,7 @@ Disallow: /tracker
 Disallow: /api/
 
 # Sitemap location — replace with your real domain
-Sitemap: https://YOUR-DOMAIN.com/sitemap.xml
+Sitemap: https://save-karo.vercel.app/sitemap.xml
 
 # Crawl delay (optional — be nice to bots)
 Crawl-delay: 1
