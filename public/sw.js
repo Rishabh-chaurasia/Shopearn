@@ -64,8 +64,8 @@ self.addEventListener("push", e => {
   e.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
-      icon: "/logo192.png",
-      badge: "/logo192.png",
+      icon: "/favicon.ico",
+      badge: "/favicon.ico",
       data: { url: data.url || "/" },
       actions: [
         { action:"view",  title:"View Deal" },
